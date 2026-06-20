@@ -12,6 +12,7 @@ import { format } from 'date-fns';
 
 export default function Leads() {
   const [statusFilter, setStatusFilter] = useState('all');
+  const [supplierFilter, setSupplierFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [selectedLead, setSelectedLead] = useState(null);
 
@@ -20,8 +21,11 @@ export default function Leads() {
     queryFn: () => base44.entities.Lead.filter({ archived: false }, '-created_date', 500),
   });
 
+  const suppliers = [...new Set(leads.map(l => l.supplier_name).filter(Boolean))];
+
   const filtered = leads.filter(l => {
     if (statusFilter !== 'all' && l.final_status !== statusFilter) return false;
+    if (supplierFilter !== 'all' && l.supplier_name !== supplierFilter) return false;
     if (search) {
       const q = search.toLowerCase();
       return (l.first_name || '').toLowerCase().includes(q)
@@ -76,6 +80,15 @@ export default function Leads() {
             <SelectItem value="Unsold">Unsold</SelectItem>
             <SelectItem value="Error">Error</SelectItem>
             <SelectItem value="Processing">Processing</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={supplierFilter} onValueChange={setSupplierFilter}>
+          <SelectTrigger className="w-[150px] bg-card border-border">
+            <SelectValue placeholder="Supplier" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Suppliers</SelectItem>
+            {suppliers.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
           </SelectContent>
         </Select>
         <div className="text-[12px] text-muted-foreground">{filtered.length} leads</div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import PageHeader from '@/components/shared/PageHeader';
@@ -32,6 +32,13 @@ export default function ErrorLogs() {
     queryFn: () => base44.entities.ErrorLog.list('-created_date', 500),
   });
 
+  useEffect(() => {
+    const unsub = base44.entities.ErrorLog.subscribe(() => {
+      qc.invalidateQueries({ queryKey: ['error-logs'] });
+    });
+    return unsub;
+  }, [qc]);
+
   const filtered = errors.filter(e => {
     if (stageFilter !== 'all' && e.stage !== stageFilter) return false;
     if (severityFilter !== 'all' && e.severity !== severityFilter) return false;
@@ -49,9 +56,20 @@ export default function ErrorLogs() {
     setSelected(null);
   };
 
+  const bulkResolveAll = async () => {
+    const unresolved = filtered.filter(e => !e.resolved);
+    await Promise.all(unresolved.map(e => base44.entities.ErrorLog.update(e.id, { resolved: true })));
+    toast.success(`Resolved ${unresolved.length} errors`);
+    qc.invalidateQueries({ queryKey: ['error-logs'] });
+  };
+
   return (
     <div>
-      <PageHeader title="Error Logs" subtitle="Pipeline errors and warnings" />
+      <PageHeader title="Error Logs" subtitle="Pipeline errors and warnings">
+        <Button size="sm" variant="outline" onClick={bulkResolveAll} className="gap-1.5 text-[12px]">
+          <CheckCircle className="w-3.5 h-3.5" /> Resolve All Visible
+        </Button>
+      </PageHeader>
 
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <div className="relative flex-1 max-w-xs">

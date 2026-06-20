@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import PageHeader from '@/components/shared/PageHeader';
 import KpiCard from '@/components/overview/KpiCard';
 import StatCard from '@/components/overview/StatCard';
@@ -14,6 +14,16 @@ import { format, subDays, startOfDay, startOfWeek, startOfMonth, isAfter } from 
 const PIE_COLORS = ['#22C55E', '#F59E0B', '#EF4444'];
 
 export default function Overview() {
+  const qc = useQueryClient();
+
+  // Real-time lead updates
+  useEffect(() => {
+    const unsub = base44.entities.Lead.subscribe(() => {
+      qc.invalidateQueries({ queryKey: ['leads-all'] });
+    });
+    return unsub;
+  }, [qc]);
+
   const { data: leads = [] } = useQuery({
     queryKey: ['leads-all'],
     queryFn: () => base44.entities.Lead.filter({ archived: false }, '-created_date', 500),
@@ -180,6 +190,52 @@ export default function Overview() {
           </div>
         </div>
       </div>
+
+      {/* Per-Supplier Breakdown */}
+      {(() => {
+        const supplierNames = [...new Set(leads.map(l => l.supplier_name).filter(Boolean))];
+        if (supplierNames.length === 0) return null;
+        return (
+          <div className="bg-card border border-border rounded-[10px] mt-4 overflow-hidden">
+            <div className="px-5 py-4 border-b border-border">
+              <div className="text-[13px] font-semibold text-foreground">Supplier Breakdown</div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[13px]">
+                <thead>
+                  <tr className="border-b border-border bg-muted/50">
+                    {['Supplier', 'Total', 'Sold', 'Unsold', 'Error', 'Sold Rate', 'Avg Time'].map(h => (
+                      <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {supplierNames.map(name => {
+                    const sl = leads.filter(l => l.supplier_name === name);
+                    const sold = sl.filter(l => l.final_status === 'Sold').length;
+                    const unsold = sl.filter(l => l.final_status === 'Unsold').length;
+                    const err = sl.filter(l => l.final_status === 'Error').length;
+                    const rate = sl.length > 0 ? Math.round((sold / sl.length) * 100) : 0;
+                    const withTime = sl.filter(l => l.process_time_ms);
+                    const avgT = withTime.length > 0 ? Math.round(withTime.reduce((s, l) => s + l.process_time_ms, 0) / withTime.length) : 0;
+                    return (
+                      <tr key={name} className="hover:bg-accent/40 transition-colors">
+                        <td className="px-4 py-3 font-medium text-foreground">{name}</td>
+                        <td className="px-4 py-3 font-mono text-[12px]">{sl.length}</td>
+                        <td className="px-4 py-3 font-mono text-[12px] status-sold">{sold}</td>
+                        <td className="px-4 py-3 font-mono text-[12px] status-unsold">{unsold}</td>
+                        <td className="px-4 py-3 font-mono text-[12px] status-error">{err}</td>
+                        <td className="px-4 py-3 font-mono text-[12px]">{rate}%</td>
+                        <td className="px-4 py-3 font-mono text-[11px] text-muted-foreground">{avgT ? `${avgT}ms` : '—'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Recent Activity */}
       <div className="bg-card border border-border rounded-[10px] mt-4 overflow-hidden">
