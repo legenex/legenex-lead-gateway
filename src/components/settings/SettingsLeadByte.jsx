@@ -9,11 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import JsonViewer from '@/components/shared/JsonViewer';
-import { Plus, Save, Play, Loader2, Trash2 } from 'lucide-react';
-import { testLeadByte } from '@/functions/testLeadByte';
+import { Plus, Save, Play, Loader2, Trash2, Copy, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
-import TestLeadSender from '@/components/settings/TestLeadSender.jsx';
 
 const DEFAULT_TEMPLATE = `{
   "campid": "LEGAL-MVA-USA",
@@ -82,6 +81,60 @@ const DEFAULT_TEMPLATE = `{
   "content_name": "{{content_name}}"
 }`;
 
+const DEFAULT_TEST_PAYLOAD = {
+  campid: "LEGAL-MVA-USA",
+  email: "maakelsmuf1@eee.com",
+  firstname: "Maakel",
+  lastname: "Smuf",
+  geo_city: "HI",
+  geo_state: "HI",
+  geo_zip: "90210",
+  country: "USA",
+  zip: "90233",
+  ipaddress: "10.10.10.10",
+  phone1: "4249449001",
+  source: "Facebook",
+  c1: "s1",
+  c2: "s2",
+  c3: "s3",
+  sid: "LOL",
+  supplier_sid: "LOL",
+  ssid: "MVA-CA",
+  optinurl: "https://quiz.checkacase.com/s/v2",
+  accident_state: "HI",
+  accident_date: "Within 7 Days",
+  incident_date: "08/12/2024",
+  accident_type: "Auto",
+  accident_details: "test lead",
+  injured: "Yes",
+  injury_type: "Broken Bones",
+  type_of_injury: "",
+  treatment: "Yes",
+  treatment_type: "Hospital",
+  treatment_time: "Within 7 Days",
+  fault: "No",
+  attorney: "No",
+  has_attorney: "",
+  insurance: "Yes",
+  police_report: "Yes",
+  phone_verified: "Exact Match",
+  phone_verified_2: "Exact Match",
+  trustedform_url: "https://cert.trustedform.com/98d21e64fd8dd2b87ca81548eeb479802f79ce77",
+  jornaya_token: "123123698769",
+  supplier_brand: "CAC",
+  tier: "3",
+  vertical: "MVA",
+  client_type: "Law Firm",
+  ef_transaction_id: "132",
+  user_agent: "",
+  utm_source: "Facebook",
+  utm_campaign: "camp",
+  utm_medium: "med",
+  utm_content: "contentq",
+  utm_terms: "terms",
+  utm_ad_label: "Ad Labal"
+};
+
 const HLR_TOKENS = ['phone_verified', 'hlr_status', 'hlr_score', 'country_code'];
 const FINAL_STATUSES = ['Sold', 'Unsold', 'Error'];
 const OPERATORS = [
@@ -116,7 +169,10 @@ export default function SettingsLeadByte() {
   const [editing, setEditing] = useState(null);
   const [headerRows, setHeaderRows] = useState([]);
   const [testResult, setTestResult] = useState(null);
-  const [testingId, setTestingId] = useState(null);
+  const [sendingTest, setSendingTest] = useState(false);
+  const [selectedApiKey, setSelectedApiKey] = useState('');
+  const [testPayloadStr, setTestPayloadStr] = useState(JSON.stringify(DEFAULT_TEST_PAYLOAD, null, 2));
+  const [testLeadExpanded, setTestLeadExpanded] = useState(false);
   // Default to 'connectors' so list view always shows content
   const [activeTab, setActiveTab] = useState('connectors');
   const [connectorSubTab, setConnectorSubTab] = useState('connector');
@@ -134,6 +190,11 @@ export default function SettingsLeadByte() {
     queryFn: () => base44.entities.CustomField.list(),
   });
 
+  const { data: apiKeys = [] } = useQuery({
+    queryKey: ['api-keys-active'],
+    queryFn: () => base44.entities.ApiKey.filter({ active: true }),
+  });
+
   const { data: responseMappings = [], refetch: refetchMappings } = useQuery({
     queryKey: ['response-mappings'],
     queryFn: () => base44.entities.ResponseMapping.list('sort_order', 50),
@@ -143,6 +204,9 @@ export default function SettingsLeadByte() {
     setEditing({ ...conn });
     setHeaderRows(parseHeaderRows(conn.headers));
     setTestResult(null);
+    setTestPayloadStr(JSON.stringify(DEFAULT_TEST_PAYLOAD, null, 2));
+    setSelectedApiKey('');
+    setTestLeadExpanded(false);
     setConnectorSubTab('connector');
   };
 
@@ -151,9 +215,12 @@ export default function SettingsLeadByte() {
       api_name: '', target_url: '', http_method: 'POST',
       content_type: 'application/json', headers: '[]',
       payload_template: DEFAULT_TEMPLATE, enabled: true, is_default: false,
+      forwarding_mode: 'pass-through',
     });
     setHeaderRows([{ key: 'X_KEY', value: '' }, { key: 'Content-Type', value: 'application/json' }]);
     setTestResult(null);
+    setTestPayloadStr(JSON.stringify(DEFAULT_TEST_PAYLOAD, null, 2));
+    setSelectedApiKey('');
     setConnectorSubTab('connector');
   };
 
@@ -169,27 +236,64 @@ export default function SettingsLeadByte() {
     qc.invalidateQueries({ queryKey: ['lb-connectors-all'] });
   };
 
-  const sendTestLead = async (conn) => {
-    setTestingId(conn.id || 'new');
+  const sendTestLead = async () => {
+    if (!selectedApiKey) {
+      toast.error('Please select an API key');
+      return;
+    }
+    setSendingTest(true);
     setTestResult(null);
     try {
-      const testPayload = {
-        firstname: 'Test', lastname: 'Lead', phone: '0000000000',
-        email: 'test@legenex.com', sid: 'test', address: '123 Test St',
-        city: 'Testville', state: 'TX', zip: '00000', ip_address: '127.0.0.1',
-      };
-      const connToTest = editing ? { ...editing, headers: JSON.stringify(headerRows) } : conn;
-      let connId = connToTest.id;
-      if (!connId) {
-        const created = await base44.entities.LeadByteConnector.create({ ...connToTest, enabled: false });
-        connId = created.id;
+      let parsed;
+      try {
+        parsed = JSON.parse(testPayloadStr);
+      } catch (e) {
+        toast.error('Invalid JSON in payload');
+        setSendingTest(false);
+        return;
       }
-      const resp = await testLeadByte({ connector_id: connId, test_payload: testPayload });
-      setTestResult(resp.data);
+
+      const endpoint = 'https://api.legenex.com/functions/leads';
+      const resp = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-KEY': selectedApiKey,
+        },
+        body: JSON.stringify(parsed),
+      });
+
+      const data = await resp.json();
+      
+      // Fetch the created lead if successful
+      let createdLead = null;
+      if (resp.ok && data.lead_id) {
+        try {
+          const leads = await base44.entities.Lead.filter({ id: data.lead_id });
+          createdLead = leads[0] || null;
+        } catch {}
+      }
+
+      setTestResult({
+        status: resp.status,
+        ok: resp.ok,
+        response: data,
+        lead_request: createdLead?.leadbyte_request ? JSON.parse(createdLead.leadbyte_request) : null,
+        lead_response: createdLead?.leadbyte_response ? JSON.parse(createdLead.leadbyte_response) : null,
+        created_lead_id: data.lead_id || createdLead?.id,
+        timestamp: new Date().toISOString(),
+      });
+
+      if (resp.ok) {
+        toast.success('Test lead sent successfully');
+      } else {
+        toast.error(`Failed: ${data.error || resp.statusText}`);
+      }
     } catch (err) {
-      setTestResult({ error: err.message });
+      setTestResult({ error: err.message, timestamp: new Date().toISOString() });
+      toast.error('Network error');
     }
-    setTestingId(null);
+    setSendingTest(false);
   };
 
   const addHeaderRow = () => setHeaderRows(p => [...p, { key: '', value: '' }]);
@@ -290,9 +394,26 @@ export default function SettingsLeadByte() {
                       </Select>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2"><Switch checked={editing.enabled} onCheckedChange={v => setEditing(p => ({ ...p, enabled: v }))} /><Label className="text-[12px]">Enabled</Label></div>
-                    <div className="flex items-center gap-2"><Switch checked={editing.is_default} onCheckedChange={v => setEditing(p => ({ ...p, is_default: v }))} /><Label className="text-[12px]">Default</Label></div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-[12px]">Forwarding Mode</Label>
+                      <Select value={editing.forwarding_mode || 'pass-through'} onValueChange={v => setEditing(p => ({ ...p, forwarding_mode: v }))}>
+                        <SelectTrigger className="mt-1 bg-background"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pass-through">Pass-through (forward as-is)</SelectItem>
+                          <SelectItem value="template">Template (token substitution)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        Pass-through forwards inbound payload keys unchanged (merges HLR + calcs). Template uses the Payload Builder below.
+                      </p>
+                    </div>
+                    <div className="flex items-end">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2"><Switch checked={editing.enabled} onCheckedChange={v => setEditing(p => ({ ...p, enabled: v }))} /><Label className="text-[12px]">Enabled</Label></div>
+                        <div className="flex items-center gap-2"><Switch checked={editing.is_default} onCheckedChange={v => setEditing(p => ({ ...p, is_default: v }))} /><Label className="text-[12px]">Default</Label></div>
+                      </div>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -314,21 +435,101 @@ export default function SettingsLeadByte() {
                 </CardContent>
               </Card>
 
-              <Card className="bg-card border-border">
-                <CardHeader className="pb-2"><CardTitle className="text-[13px]">Payload Builder</CardTitle></CardHeader>
-                <CardContent>
-                  <p className="text-[11px] text-muted-foreground mb-2">Use <code className="bg-muted px-1 rounded text-primary">{'{{token}}'}</code> placeholders.</p>
-                  <Textarea value={editing.payload_template || DEFAULT_TEMPLATE} onChange={e => setEditing(p => ({ ...p, payload_template: e.target.value }))} className="bg-background font-mono text-[12px] min-h-[400px] leading-relaxed" />
-                </CardContent>
-              </Card>
+              {(!editing.forwarding_mode || editing.forwarding_mode === 'template') && (
+                <Card className="bg-card border-border">
+                  <CardHeader className="pb-2"><CardTitle className="text-[13px]">Payload Builder</CardTitle></CardHeader>
+                  <CardContent>
+                    <p className="text-[11px] text-muted-foreground mb-2">Use <code className="bg-muted px-1 rounded text-primary">{'{{token}}'}</code> placeholders.</p>
+                    <Textarea value={editing.payload_template || DEFAULT_TEMPLATE} onChange={e => setEditing(p => ({ ...p, payload_template: e.target.value }))} className="bg-background font-mono text-[12px] min-h-[400px] leading-relaxed" />
+                  </CardContent>
+                </Card>
+              )}
 
-              <div className="flex items-center gap-3">
-                <Button variant="outline" onClick={() => sendTestLead(editing)} disabled={testingId === (editing.id || 'new')} className="gap-1.5">
-                  {testingId === (editing.id || 'new') ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                  Test (server-side)
-                </Button>
-              </div>
-              {testResult && <JsonViewer data={testResult} title="LeadByte Response" />}
+              {/* Test Lead Collapsible Section */}
+              <Collapsible open={testLeadExpanded} onOpenChange={setTestLeadExpanded} className="bg-card border border-border rounded-lg">
+                <CollapsibleTrigger asChild>
+                  <button className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-accent/30 transition-colors rounded-lg">
+                    <div className="flex items-center gap-2">
+                      {testLeadExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+                      <span className="text-[13px] font-medium text-foreground">Test Lead (End-to-End)</span>
+                    </div>
+                    <Badge variant="outline" className="text-[10px]">Live endpoint</Badge>
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="px-4 pb-4 pt-2 space-y-4">
+                  <div className="bg-muted/30 rounded-lg p-3 space-y-3">
+                    <div>
+                      <Label className="text-[11px] font-semibold text-muted-foreground">Live Endpoint URL</Label>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Input readOnly value="https://api.legenex.com/functions/leads" className="bg-background font-mono text-[11px] h-9" />
+                        <Button size="sm" variant="outline" className="h-9 w-9 p-0" onClick={() => { navigator.clipboard.writeText('https://api.legenex.com/functions/leads'); toast.success('Copied'); }}>
+                          <Copy className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label className="text-[11px] font-semibold text-muted-foreground">API Key</Label>
+                      <Select value={selectedApiKey} onValueChange={setSelectedApiKey}>
+                        <SelectTrigger className="mt-1 bg-background h-9"><SelectValue placeholder="Select an API key" /></SelectTrigger>
+                        <SelectContent>
+                          {apiKeys.length === 0 && <SelectItem disabled value="">No active keys</SelectItem>}
+                          {apiKeys.map(key => (
+                            <SelectItem key={key.id} value={key.key}>
+                              {key.name} ({key.supplier_name || 'Master'} — {key.key_prefix}...)
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {selectedApiKey && (
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          Selected key will be sent as <code className="bg-muted px-1 rounded text-primary">X-API-KEY</code> header
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label className="text-[11px] font-semibold text-muted-foreground">Test Payload (editable)</Label>
+                    <Textarea
+                      value={testPayloadStr}
+                      onChange={e => setTestPayloadStr(e.target.value)}
+                      className="bg-background font-mono text-[11px] min-h-[300px] leading-relaxed mt-1"
+                    />
+                    <div className="flex items-center gap-2 mt-2">
+                      <Button size="sm" variant="outline" onClick={() => setTestPayloadStr(JSON.stringify(DEFAULT_TEST_PAYLOAD, null, 2))}>
+                        Reset to Default
+                      </Button>
+                    </div>
+                  </div>
+
+                  <Button onClick={sendTestLead} disabled={sendingTest || !selectedApiKey} className="gap-1.5">
+                    {sendingTest ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                    Send Test Lead
+                  </Button>
+
+                  {testResult && (
+                    <div className="space-y-3 pt-2 border-t border-border">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[12px] font-semibold text-foreground">Result:</span>
+                        <Badge className={testResult.ok ? 'bg-status-sold text-green-400' : 'bg-status-error text-red-400'}>
+                          {testResult.ok ? 'Success' : testResult.error ? 'Error' : 'Failed'}
+                        </Badge>
+                        {testResult.created_lead_id && (
+                          <a href={`/leads?id=${testResult.created_lead_id}`} className="text-[11px] text-primary flex items-center gap-1 hover:underline">
+                            View Lead <ExternalLink className="w-3 h-3" />
+                          </a>
+                        )}
+                      </div>
+                      <div className="grid gap-3">
+                        {testResult.response && <JsonViewer data={testResult.response} title="Response" />}
+                        {testResult.lead_request && <JsonViewer data={testResult.lead_request} title="LeadByte Request" />}
+                        {testResult.lead_response && <JsonViewer data={testResult.lead_response} title="LeadByte Response" />}
+                      </div>
+                    </div>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
             </>
           )}
 
@@ -374,7 +575,7 @@ export default function SettingsLeadByte() {
   return (
     <div>
       <div className="flex gap-1 border-b border-border mb-5">
-        {[{ k: 'connectors', l: 'Connectors' }, { k: 'responses', l: 'Response Builder' }, { k: 'testlead', l: 'Test Lead' }].map(({ k, l }) => (
+        {[{ k: 'connectors', l: 'Connectors' }, { k: 'responses', l: 'Response Builder' }].map(({ k, l }) => (
           <button key={k} onClick={() => setActiveTab(k)}
             className={`px-4 py-2 text-[13px] font-medium transition-colors border-b-2 -mb-px
               ${activeTab === k ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
@@ -396,7 +597,7 @@ export default function SettingsLeadByte() {
                     <div>
                       <div className="text-[14px] font-medium text-foreground">{conn.api_name}</div>
                       <div className="font-mono text-[11px] text-muted-foreground mt-1">{conn.target_url}</div>
-                      <div className="text-[11px] text-muted-foreground mt-1">{conn.content_type || 'application/json'} · {conn.http_method || 'POST'}</div>
+                      <div className="text-[11px] text-muted-foreground mt-1">{conn.content_type || 'application/json'} · {conn.http_method || 'POST'} · {conn.forwarding_mode || 'template'}</div>
                     </div>
                     <div className="flex items-center gap-2">
                       {conn.is_default && <Badge className="bg-primary/20 text-primary text-[10px]">Default</Badge>}
@@ -404,10 +605,6 @@ export default function SettingsLeadByte() {
                         {conn.enabled ? 'Active' : 'Disabled'}
                       </Badge>
                       <Button size="sm" variant="ghost" onClick={() => openEdit(conn)}>Edit</Button>
-                      <Button size="sm" variant="outline" onClick={() => sendTestLead(conn)} disabled={testingId === conn.id} className="gap-1.5">
-                        {testingId === conn.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-                        Test
-                      </Button>
                     </div>
                   </div>
                 </CardContent>
@@ -415,7 +612,6 @@ export default function SettingsLeadByte() {
             ))}
             {connectors.length === 0 && <div className="text-center py-8 text-muted-foreground text-[13px]">No connectors configured</div>}
           </div>
-          {testResult && <div className="mt-4"><JsonViewer data={testResult} title="Test Response" /></div>}
         </div>
       )}
 
@@ -430,8 +626,6 @@ export default function SettingsLeadByte() {
           savingMapping={savingMapping}
         />
       )}
-
-      {activeTab === 'testlead' && <TestLeadSender />}
     </div>
   );
 }

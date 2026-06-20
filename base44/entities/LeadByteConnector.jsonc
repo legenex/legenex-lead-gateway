@@ -39,6 +39,15 @@
     "is_default": {
       "type": "boolean",
       "default": false
+    },
+    "forwarding_mode": {
+      "type": "string",
+      "enum": [
+        "pass-through",
+        "template"
+      ],
+      "default": "pass-through",
+      "description": "pass-through forwards inbound payload as-is (merging HLR + calcs); template uses payload_template with token substitution"
     }
   },
   "required": [

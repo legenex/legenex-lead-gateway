@@ -316,7 +316,17 @@ Deno.serve(async (req) => {
       return Response.json(resp, { status: 200 });
     }
 
-    const leadBytePayload = buildPayloadFromTemplate(leadByteConnector.payload_template, enrichedData);
+    // Build LeadByte payload based on forwarding mode
+    let leadBytePayload;
+    const forwardingMode = leadByteConnector.forwarding_mode || 'template';
+    
+    if (forwardingMode === 'pass-through') {
+      // Pass-through: forward inbound payload as-is, merging HLR + calculations
+      leadBytePayload = { ...enrichedData };
+    } else {
+      // Template: use payload_template with {{token}} substitution
+      leadBytePayload = buildPayloadFromTemplate(leadByteConnector.payload_template, enrichedData);
+    }
 
     await db.entities.Lead.update(leadId, {
       leadbyte_request: JSON.stringify(leadBytePayload),
