@@ -112,8 +112,17 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const payload = body.payload || body;
 
-    // Extract key from X-API-KEY header, Basic Auth (username=key, password=blank), or payload fields
-    let supplierKeyRaw = req.headers.get('X-API-KEY') || payload['X-API-KEY'] || payload._supplier_key || null;
+    // Extract key from multiple possible header/field names
+    // X-API-KEY (hyphen), X_KEY (underscore, LeadShook style), Basic Auth, or payload fields
+    let supplierKeyRaw =
+      req.headers.get('X-API-KEY') ||
+      req.headers.get('X_KEY') ||
+      req.headers.get('x-api-key') ||
+      req.headers.get('x_key') ||
+      payload['X-API-KEY'] ||
+      payload['X_KEY'] ||
+      payload._supplier_key ||
+      null;
     if (!supplierKeyRaw) {
       const authHeader = req.headers.get('Authorization') || '';
       if (authHeader.startsWith('Basic ')) {
