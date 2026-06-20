@@ -170,7 +170,7 @@ export default function SettingsCustomFields() {
           <thead>
             <tr className="border-b border-border bg-muted/50">
               <th className="w-8 px-2" />
-              {['Token (field_name)', 'Label', 'Type', 'Send to LB', 'LB Field', 'Notes', ''].map(h => (
+              {['Label', 'Token (field_name)', 'Type', 'Send to LB', 'LB Field', 'Notes', ''].map(h => (
                 <th key={h} className="text-left px-4 py-2.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{h}</th>
               ))}
             </tr>
@@ -199,8 +199,8 @@ export default function SettingsCustomFields() {
                               <GripVertical className="w-4 h-4" />
                             </div>
                           </td>
-                          <td className="px-4 py-2.5 font-mono text-[12px] text-primary">{'{{' + f.field_name + '}}'}</td>
                           <td className="px-4 py-2.5 text-foreground">{f.label || f.field_name}</td>
+                          <td className="px-4 py-2.5 font-mono text-[12px] text-primary">{'{{' + f.field_name + '}}'}</td>
                           <td className="px-4 py-2.5"><Badge variant="outline" className="text-[10px]">{f.field_type}</Badge></td>
                           <td className="px-4 py-2.5">
                             <Switch checked={f.include_in_leadbyte} onCheckedChange={async v => {

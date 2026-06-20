@@ -9,22 +9,89 @@ function resolvePhoneVerified(hlrResult, source) {
   return hlrResult.lh_hlr_response || '';
 }
 
+// Format a date object using a simple format string (UTC)
+function formatTimestamp(date, fmt) {
+  const pad = (n) => String(n).padStart(2, '0');
+  // Replace in order: longest tokens first to avoid double-replacement of MM
+  return (fmt || 'MM/DD/YYYY HH:MM:SS')
+    .replace('YYYY', date.getUTCFullYear())
+    .replace('MM', pad(date.getUTCMonth() + 1))
+    .replace('DD', pad(date.getUTCDate()))
+    .replace('HH', pad(date.getUTCHours()))
+    .replace('MM', pad(date.getUTCMinutes()))
+    .replace('SS', pad(date.getUTCSeconds()));
+}
+
+// Run custom calculations (post-HLR, pre-LeadByte). Script type not supported server-side.
+function runCalculations(calcs, leadData, hlrResult, phoneVerifiedSource) {
+  const enriched = { ...leadData };
+
+  // Inject phone_verified from HLR first
+  enriched.phone_verified = resolvePhoneVerified(hlrResult, phoneVerifiedSource);
+
+  // Sort by sort_order
+  const sorted = [...calcs].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+
+  for (const calc of sorted) {
+    if (!calc.enabled) continue;
+    let cfg = {};
+    try { cfg = JSON.parse(calc.config || '{}'); } catch {}
+
+    const inputValue = enriched[calc.input_field] ?? '';
+
+    try {
+      if (calc.transform_type === 'date_age_bucket') {
+        const fmt = cfg.date_format || 'MM/DD/YYYY';
+        let parsed = null;
+        if (fmt === 'MM/DD/YYYY') {
+          const parts = String(inputValue).split('/');
+          if (parts.length === 3) parsed = new Date(`${parts[2]}-${parts[0]}-${parts[1]}T00:00:00Z`);
+        } else if (fmt === 'YYYY-MM-DD') {
+          parsed = new Date(inputValue + 'T00:00:00Z');
+        } else {
+          parsed = new Date(inputValue);
+        }
+        if (parsed && !isNaN(parsed)) {
+          const ageDays = Math.floor((Date.now() - parsed.getTime()) / 86400000);
+          const buckets = (cfg.buckets || []).slice().sort((a, b) => a.max_days - b.max_days);
+          let matched = cfg.fallback || '';
+          for (const b of buckets) {
+            if (ageDays <= b.max_days) { matched = b.label; break; }
+          }
+          enriched[calc.output_token] = matched;
+        } else {
+          enriched[calc.output_token] = cfg.fallback || '';
+        }
+      } else if (calc.transform_type === 'value_map') {
+        const map = cfg.map || {};
+        const normalized = String(inputValue).trim().toLowerCase();
+        // Check exact match first, then normalized
+        if (map[inputValue] !== undefined) {
+          enriched[calc.output_token] = map[inputValue];
+        } else {
+          const matchKey = Object.keys(map).find(k => k.trim().toLowerCase() === normalized);
+          enriched[calc.output_token] = matchKey !== undefined ? map[matchKey] : inputValue;
+        }
+      } else if (calc.transform_type === 'script') {
+        // Script not evaluated server-side; passthrough
+        enriched[calc.output_token] = inputValue;
+      }
+    } catch {
+      enriched[calc.output_token] = inputValue;
+    }
+  }
+
+  return enriched;
+}
+
 // Build LeadByte payload from template with {{token}} substitution
-function buildPayloadFromTemplate(template, leadData, hlrData, phoneVerifiedSource) {
-  if (!template) return leadData;
+function buildPayloadFromTemplate(template, enrichedData) {
+  if (!template) return enrichedData;
   let tmpl;
-  try { tmpl = typeof template === 'string' ? template : JSON.stringify(template); } catch { return leadData; }
+  try { tmpl = typeof template === 'string' ? template : JSON.stringify(template); } catch { return enrichedData; }
 
-  const phoneVerified = resolvePhoneVerified(hlrData, phoneVerifiedSource);
-
-  const result = tmpl.replace(/\{\{(\w+)\}\}/g, (_, token) => {
-    if (token === 'phone_verified') return phoneVerified;
-    // HLR tokens
-    if (token === 'hlr_status') return (hlrData && hlrData.lh_hlr_response) ? hlrData.lh_hlr_response : '';
-    if (token === 'hlr_score') return (hlrData && hlrData.summary_score != null) ? String(hlrData.summary_score) : '';
-    if (token === 'country_code') return (hlrData && hlrData.country_code) ? hlrData.country_code : '';
-    // Lead data tokens
-    const val = leadData[token];
+  const result = tmpl.replace(/\{\{([\w.]+)\}\}/g, (_, token) => {
+    const val = enrichedData[token];
     return val !== undefined && val !== null ? String(val) : '';
   });
 
@@ -49,7 +116,7 @@ Deno.serve(async (req) => {
     delete leadPayload['X-API-KEY'];
     delete leadPayload._supplier_key;
 
-    // Always ignore incoming phone_verified from supplier
+    // Always ignore incoming phone_verified from supplier (we compute it from HLR)
     delete leadPayload.phone_verified;
 
     // 1. AUTH
@@ -74,7 +141,14 @@ Deno.serve(async (req) => {
       request_count: (apiKeyRecord.request_count || 0) + 1
     });
 
-    // 2. CREATE LEAD
+    // 2. INJECT TIMESTAMP at lead creation time
+    const now = new Date();
+    const appSettingsArr = await base44.asServiceRole.entities.AppSettings.list();
+    const appSettings = appSettingsArr[0] || {};
+    const tsFmt = appSettings.timestamp_format || 'MM/DD/YYYY HH:MM:SS';
+    leadPayload.timestamp = formatTimestamp(now, tsFmt);
+
+    // 3. CREATE LEAD
     const lead = await base44.asServiceRole.entities.Lead.create({
       supplier_name: apiKeyRecord.supplier_name,
       supplier_key_id: apiKeyRecord.id,
@@ -84,17 +158,29 @@ Deno.serve(async (req) => {
     leadId = lead.id;
 
     // Load config
-    const hlrSettingsArr = await base44.asServiceRole.entities.HlrSettings.list();
+    const [hlrSettingsArr, connectors, calcs] = await Promise.all([
+      base44.asServiceRole.entities.HlrSettings.list(),
+      base44.asServiceRole.entities.LeadByteConnector.filter({ enabled: true, is_default: true }),
+      base44.asServiceRole.entities.CustomCalculation.list(),
+    ]);
     const hlrSettings = hlrSettingsArr[0] || null;
-
-    const connectors = await base44.asServiceRole.entities.LeadByteConnector.filter({ enabled: true, is_default: true });
     const leadByteConnector = connectors[0] || null;
 
-    // 3. MAP FIELDS — use Leadshook field names (firstname, lastname, phone)
-    const mobile = leadPayload.phone || leadPayload.mobile || leadPayload.phone_number || '';
-    const firstName = leadPayload.firstname || leadPayload.first_name || '';
-    const lastName = leadPayload.lastname || leadPayload.last_name || '';
+    // 4. NORMALISE FIELD ALIASES into canonical tokens
+    const mobile = leadPayload.mobile || leadPayload.phone1 || leadPayload.phone || leadPayload.phone_number || '';
+    const firstName = leadPayload.first_name || leadPayload.firstname || '';
+    const lastName = leadPayload.last_name || leadPayload.lastname || '';
     const email = leadPayload.email || '';
+
+    if (!leadPayload.first_name && firstName) leadPayload.first_name = firstName;
+    if (!leadPayload.last_name && lastName) leadPayload.last_name = lastName;
+    if (!leadPayload.mobile && mobile) leadPayload.mobile = mobile;
+    if (!leadPayload.ip_address && leadPayload.ipaddress) leadPayload.ip_address = leadPayload.ipaddress;
+    if (!leadPayload.optin_url && leadPayload.optinurl) leadPayload.optin_url = leadPayload.optinurl;
+    if (!leadPayload.trustedform_url && leadPayload.trustedform_cert) leadPayload.trustedform_url = leadPayload.trustedform_cert;
+    if (!leadPayload.jornaya_token && leadPayload.jornaya_leadid) leadPayload.jornaya_token = leadPayload.jornaya_leadid;
+    if (!leadPayload.supplier_brand && leadPayload.brand) leadPayload.supplier_brand = leadPayload.brand;
+    if (!leadPayload.ad_label && leadPayload.utm_ad_label) leadPayload.ad_label = leadPayload.utm_ad_label;
 
     await base44.asServiceRole.entities.Lead.update(leadId, {
       mapped_fields: JSON.stringify(leadPayload),
@@ -104,22 +190,20 @@ Deno.serve(async (req) => {
       email: email
     });
 
-    // 4. HLR LOOKUP
+    // 5. HLR LOOKUP
     let hlrResult = null;
-    let hlrError = null;
+    let hlrRequestBody = {};
 
     if (hlrSettings && hlrSettings.enabled) {
       const reqFieldMap = typeof hlrSettings.request_field_map === 'string'
         ? JSON.parse(hlrSettings.request_field_map || '{}')
         : (hlrSettings.request_field_map || {});
 
-      // Map inbound Leadshook fields to HLR request fields
-      // reqFieldMap keys are HLR field names, values are inbound field names
       const mobileField = reqFieldMap.mobile || 'phone';
       const firstField = reqFieldMap.first_name || 'firstname';
       const lastField = reqFieldMap.last_name || 'lastname';
 
-      const hlrRequestBody = {
+      hlrRequestBody = {
         mobile: leadPayload[mobileField] || mobile,
         first_name: leadPayload[firstField] || firstName,
         last_name: leadPayload[lastField] || lastName,
@@ -127,9 +211,6 @@ Deno.serve(async (req) => {
 
       const failMode = hlrSettings.fail_mode || 'fail_open';
       const timeoutMs = hlrSettings.timeout_ms || 8000;
-      const passthroughFields = typeof hlrSettings.passthrough_fields === 'string'
-        ? JSON.parse(hlrSettings.passthrough_fields || '[]')
-        : (hlrSettings.passthrough_fields || []);
 
       try {
         const controller = new AbortController();
@@ -151,7 +232,7 @@ Deno.serve(async (req) => {
           hlr_summary_score: hlrResult.summary_score ?? null,
         });
       } catch (err) {
-        hlrError = err.message || 'HLR lookup failed';
+        const hlrError = err.message || 'HLR lookup failed';
         await base44.asServiceRole.entities.Lead.update(leadId, {
           hlr_error: hlrError,
           hlr_request: JSON.stringify(hlrRequestBody),
@@ -173,7 +254,18 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 5. BUILD LEADBYTE PAYLOAD using template
+    // 6. RUN CUSTOM CALCULATIONS (post-HLR, pre-LeadByte)
+    const phoneVerifiedSource = hlrSettings?.phone_verified_source || 'lh_hlr_response';
+    const enrichedData = runCalculations(calcs, leadPayload, hlrResult, phoneVerifiedSource);
+
+    // Expose raw HLR tokens
+    if (hlrResult) {
+      enrichedData.hlr_status = hlrResult.lh_hlr_response || '';
+      enrichedData.hlr_score = hlrResult.summary_score != null ? String(hlrResult.summary_score) : '';
+      enrichedData.country_code = hlrResult.country_code || '';
+    }
+
+    // 7. BUILD LEADBYTE PAYLOAD
     if (!leadByteConnector) {
       await base44.asServiceRole.entities.Lead.update(leadId, {
         final_status: 'Error', error_stage: 'leadbyte',
@@ -189,28 +281,22 @@ Deno.serve(async (req) => {
       return Response.json({ Response: 'Error', message: 'No active LeadByte connector configured' }, { status: 200 });
     }
 
-    const phoneVerifiedSource = hlrSettings?.phone_verified_source || 'lh_hlr_response';
-    const leadBytePayload = buildPayloadFromTemplate(
-      leadByteConnector.payload_template,
-      leadPayload,
-      hlrResult,
-      phoneVerifiedSource
-    );
+    const leadBytePayload = buildPayloadFromTemplate(leadByteConnector.payload_template, enrichedData);
 
     await base44.asServiceRole.entities.Lead.update(leadId, {
       leadbyte_request: JSON.stringify(leadBytePayload),
     });
 
-    // 6. FORWARD TO LEADBYTE
-    const headerRows = typeof leadByteConnector.headers === 'string'
+    // 8. FORWARD TO LEADBYTE
+    const headerRowsParsed = typeof leadByteConnector.headers === 'string'
       ? JSON.parse(leadByteConnector.headers || '[]')
       : (leadByteConnector.headers || []);
 
     const lbHeaders = {};
-    if (Array.isArray(headerRows)) {
-      headerRows.forEach(row => { if (row.key) lbHeaders[row.key] = row.value; });
+    if (Array.isArray(headerRowsParsed)) {
+      headerRowsParsed.forEach(row => { if (row.key) lbHeaders[row.key] = row.value; });
     } else {
-      Object.assign(lbHeaders, headerRows);
+      Object.assign(lbHeaders, headerRowsParsed);
     }
 
     const contentType = leadByteConnector.content_type || 'application/json';
@@ -239,7 +325,7 @@ Deno.serve(async (req) => {
       leadbyte_response: JSON.stringify(lbResult),
     });
 
-    // 7. MAP DECISION
+    // 9. MAP DECISION
     let finalStatus = 'Error';
     let supplierResponse = { Response: 'Error', message: 'Unexpected LeadByte response' };
 
@@ -275,7 +361,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 8. FINALIZE
+    // 10. FINALIZE
     await base44.asServiceRole.entities.Lead.update(leadId, {
       final_status: finalStatus,
       processed_at: new Date().toISOString(),
