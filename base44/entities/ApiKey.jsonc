@@ -2,18 +2,34 @@
   "name": "ApiKey",
   "type": "object",
   "properties": {
+    "name": {
+      "type": "string",
+      "description": "Friendly label for this key"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "master",
+        "supplier"
+      ],
+      "default": "supplier",
+      "description": "master keys have no linked supplier; supplier keys link to exactly one supplier"
+    },
     "supplier_name": {
-      "type": "string"
+      "type": "string",
+      "description": "Supplier display name (denormalized for fast lookup)"
     },
     "supplier_id": {
       "type": "string",
-      "description": "Reference to Supplier record"
+      "description": "Reference to Supplier record (optional for master keys)"
     },
     "key": {
-      "type": "string"
+      "type": "string",
+      "description": "Full key value \u2014 only present at creation; should be hashed in production"
     },
     "key_prefix": {
-      "type": "string"
+      "type": "string",
+      "description": "First 16 chars of key, shown in UI"
     },
     "active": {
       "type": "boolean",
@@ -33,7 +49,7 @@
     }
   },
   "required": [
-    "supplier_name",
+    "name",
     "key",
     "key_prefix"
   ]

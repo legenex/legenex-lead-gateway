@@ -115,6 +115,8 @@ export default function SettingsSuppliers() {
       const key = generateKey();
       setNewKeyFull(key);
       await base44.entities.ApiKey.create({
+        name: form.name,
+        type: 'supplier',
         supplier_name: form.name,
         supplier_id: supplierId,
         key,
@@ -141,6 +143,8 @@ export default function SettingsSuppliers() {
       });
     } else {
       await base44.entities.ApiKey.create({
+        name: supplier.name,
+        type: 'supplier',
         supplier_name: supplier.name,
         supplier_id: supplier.id,
         key,

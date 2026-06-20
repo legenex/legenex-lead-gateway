@@ -111,7 +111,17 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json();
     const payload = body.payload || body;
-    const supplierKeyRaw = payload['X-API-KEY'] || payload._supplier_key || req.headers.get('X-API-KEY') || null;
+
+    // Extract key from X-API-KEY header, Basic Auth (username=key, password=blank), or payload fields
+    let supplierKeyRaw = req.headers.get('X-API-KEY') || payload['X-API-KEY'] || payload._supplier_key || null;
+    if (!supplierKeyRaw) {
+      const authHeader = req.headers.get('Authorization') || '';
+      if (authHeader.startsWith('Basic ')) {
+        const decoded = atob(authHeader.slice(6));
+        supplierKeyRaw = decoded.split(':')[0] || null;
+      }
+    }
+
     const leadPayload = { ...payload };
     delete leadPayload['X-API-KEY'];
     delete leadPayload._supplier_key;
@@ -119,7 +129,7 @@ Deno.serve(async (req) => {
     // Always ignore incoming phone_verified from supplier (we compute it from HLR)
     delete leadPayload.phone_verified;
 
-    // 1. AUTH
+    // 1. AUTH — accept master keys (no supplier) and supplier keys
     let apiKeyRecord = null;
     if (supplierKeyRaw) {
       const keys = await base44.asServiceRole.entities.ApiKey.filter({ key: supplierKeyRaw });
@@ -136,6 +146,11 @@ Deno.serve(async (req) => {
       return Response.json({ Response: 'Error', message: 'Invalid or missing API key' }, { status: 401 });
     }
 
+    // For master keys, use "Master" as the supplier attribution
+    const supplierAttribution = apiKeyRecord.type === 'master'
+      ? 'Master'
+      : (apiKeyRecord.supplier_name || 'Unknown');
+
     await base44.asServiceRole.entities.ApiKey.update(apiKeyRecord.id, {
       last_used_at: new Date().toISOString(),
       request_count: (apiKeyRecord.request_count || 0) + 1
@@ -150,7 +165,7 @@ Deno.serve(async (req) => {
 
     // 3. CREATE LEAD
     const lead = await base44.asServiceRole.entities.Lead.create({
-      supplier_name: apiKeyRecord.supplier_name,
+      supplier_name: supplierAttribution,
       supplier_key_id: apiKeyRecord.id,
       raw_payload: JSON.stringify(leadPayload),
       final_status: 'Processing'
@@ -240,7 +255,7 @@ Deno.serve(async (req) => {
         await base44.asServiceRole.entities.ErrorLog.create({
           lead_id: leadId, stage: 'hlr', severity: 'error',
           message: hlrError, detail: JSON.stringify({ fail_mode: failMode }),
-          supplier_name: apiKeyRecord.supplier_name,
+          supplier_name: supplierAttribution,
         });
         if (failMode === 'fail_closed') {
           await base44.asServiceRole.entities.Lead.update(leadId, {
@@ -276,7 +291,7 @@ Deno.serve(async (req) => {
       await base44.asServiceRole.entities.ErrorLog.create({
         lead_id: leadId, stage: 'leadbyte', severity: 'critical',
         message: 'No active LeadByte connector configured',
-        supplier_name: apiKeyRecord.supplier_name,
+        supplier_name: supplierAttribution,
       });
       return Response.json({ Response: 'Error', message: 'No active LeadByte connector configured' }, { status: 200 });
     }
@@ -350,14 +365,14 @@ Deno.serve(async (req) => {
         await base44.asServiceRole.entities.ErrorLog.create({
           lead_id: leadId, stage: 'leadbyte', severity: 'error',
           message: `Unexpected LeadByte record status: ${recordStatus}`,
-          detail: JSON.stringify(lbResult), supplier_name: apiKeyRecord.supplier_name,
+          detail: JSON.stringify(lbResult), supplier_name: supplierAttribution,
         });
       }
     } else {
       await base44.asServiceRole.entities.ErrorLog.create({
         lead_id: leadId, stage: 'leadbyte', severity: 'error',
         message: lbResult.message || 'LeadByte returned non-success',
-        detail: JSON.stringify(lbResult), supplier_name: apiKeyRecord.supplier_name,
+        detail: JSON.stringify(lbResult), supplier_name: supplierAttribution,
       });
     }
 
@@ -380,7 +395,7 @@ Deno.serve(async (req) => {
           whHeaders['Content-Type'] = 'application/json';
           fetch(wh.url, {
             method: 'POST', headers: whHeaders,
-            body: JSON.stringify({ event: eventName, lead_id: leadId, status: finalStatus, supplier: apiKeyRecord.supplier_name }),
+            body: JSON.stringify({ event: eventName, lead_id: leadId, status: finalStatus, supplier: supplierAttribution }),
           }).catch(() => {});
         }
       });
