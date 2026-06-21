@@ -199,9 +199,15 @@ export default function SettingsLeadByte() {
     setEditing({ ...conn });
     setHeaderRows(parseHeaderRows(conn.headers));
     setTestResult(null);
-    setTestPayloadStr(JSON.stringify(DEFAULT_TEST_PAYLOAD, null, 2));
+    setTestPayloadStr(conn.test_payload_last_used || JSON.stringify(DEFAULT_TEST_PAYLOAD, null, 2));
     setTestLeadExpanded(false);
     setConnectorSubTab('connector');
+  };
+
+  const saveTestPayload = async (payloadStr) => {
+    if (!editing?.id) return;
+    await base44.entities.LeadByteConnector.update(editing.id, { test_payload_last_used: payloadStr });
+    setEditing(p => ({ ...p, test_payload_last_used: payloadStr }));
   };
 
   const openCreate = () => {
@@ -240,6 +246,7 @@ export default function SettingsLeadByte() {
       setSendingTest(false);
       return;
     }
+    await saveTestPayload(testPayloadStr);
     const resp = await testLeadByteConnector({ connector_id: editing.id, test_payload: parsed });
     const data = resp.data;
     setTestResult(data);
@@ -423,7 +430,11 @@ export default function SettingsLeadByte() {
                       className="bg-background font-mono text-[11px] min-h-[300px] leading-relaxed mt-1"
                     />
                     <div className="flex items-center gap-2 mt-2">
-                      <Button size="sm" variant="outline" onClick={() => setTestPayloadStr(JSON.stringify(DEFAULT_TEST_PAYLOAD, null, 2))}>
+                      <Button size="sm" variant="outline" onClick={() => {
+                        const defaultStr = JSON.stringify(DEFAULT_TEST_PAYLOAD, null, 2);
+                        setTestPayloadStr(defaultStr);
+                        saveTestPayload(defaultStr);
+                      }}>
                         Reset to Default
                       </Button>
                     </div>

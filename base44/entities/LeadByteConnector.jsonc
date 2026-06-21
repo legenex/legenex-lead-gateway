@@ -48,6 +48,10 @@
       ],
       "default": "pass-through",
       "description": "pass-through forwards inbound payload as-is (merging HLR + calcs); template uses payload_template with token substitution"
+    },
+    "test_payload_last_used": {
+      "type": "string",
+      "description": "JSON string of the last test payload used in the Send Test to LeadByte section"
     }
   },
   "required": [
