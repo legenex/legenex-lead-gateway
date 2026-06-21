@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FileText, AlertTriangle, Bell, ShieldCheck, Settings, Zap, Calculator } from 'lucide-react';
+import { LayoutDashboard, FileText, AlertTriangle, Bell, ShieldCheck, Settings, Calculator } from 'lucide-react';
 
 const navItems = [
   { path: '/', label: 'Overview', icon: LayoutDashboard },
@@ -20,14 +20,8 @@ export default function Sidebar() {
       style={{ borderTopRightRadius: '16px', borderBottomRightRadius: '16px' }}>
       
       {/* Brand */}
-      <Link to="/" className="flex items-center gap-3 px-5 py-6 group">
-        <div className="w-9 h-9 rounded-lg bg-primary/15 flex items-center justify-center">
-          <Zap className="w-5 h-5 text-primary" />
-        </div>
-        <div>
-          <div className="text-[15px] font-bold text-foreground tracking-tight">Legenex</div>
-          <div className="text-[11px] text-muted-foreground font-medium">Lead Gateway</div>
-        </div>
+      <Link to="/" className="flex items-center px-5 py-6 group">
+        <img src="https://media.base44.com/images/public/6a363ed8bf1b77641238d41d/f9cc21785_LogoWideLightClear.png" alt="Legenex" className="h-8 w-auto" />
       </Link>
 
       {/* Nav */}
