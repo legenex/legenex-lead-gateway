@@ -21,7 +21,7 @@ export default function Sidebar() {
       
       {/* Brand */}
       <Link to="/" className="flex items-center px-5 py-6 group">
-        <img src="https://media.base44.com/images/public/6a363ed8bf1b77641238d41d/f9cc21785_LogoWideLightClear.png" alt="Legenex" className="h-8 w-auto" />
+        <img src="https://media.base44.com/images/public/6a363ed8bf1b77641238d41d/f9cc21785_LogoWideLightClear.png" alt="Legenex" className="h-10 w-auto max-w-full object-contain" />
       </Link>
 
       {/* Nav */}
