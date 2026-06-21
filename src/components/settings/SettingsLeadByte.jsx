@@ -5,8 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -149,6 +149,18 @@ const OPERATORS = [
   { value: 'is_not_empty', label: 'is not empty' },
 ];
 const VALUE_LESS_OPS = ['is_empty', 'is_not_empty'];
+const FIELD_PATH_OPTIONS = [
+  { value: 'records[0].status', label: 'records[0].status' },
+  { value: 'records[0].rejection_id', label: 'records[0].rejection_id' },
+  { value: 'records[0].id', label: 'records[0].id' },
+  { value: 'records[0].queue_id', label: 'records[0].queue_id' },
+  { value: 'records[0].valid', label: 'records[0].valid' },
+  { value: 'records[0].error', label: 'records[0].error' },
+  { value: 'status', label: 'status' },
+  { value: 'success', label: 'success' },
+  { value: 'error', label: 'error' },
+  { value: 'lead_id', label: 'lead_id' },
+];
 
 function parseHeaderRows(val) {
   if (!val) return [{ key: 'Content-Type', value: 'application/json' }];
@@ -340,32 +352,38 @@ export default function SettingsLeadByte() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label className="text-[12px]">HTTP Method</Label>
-                      <Select value={editing.http_method || 'POST'} onValueChange={v => setEditing(p => ({ ...p, http_method: v }))}>
-                        <SelectTrigger className="mt-1 bg-background"><SelectValue /></SelectTrigger>
-                        <SelectContent><SelectItem value="POST">POST</SelectItem><SelectItem value="GET">GET</SelectItem></SelectContent>
-                      </Select>
+                      <SearchableSelect
+                        value={editing.http_method || 'POST'}
+                        onValueChange={v => setEditing(p => ({ ...p, http_method: v }))}
+                        className="mt-1 bg-background"
+                        options={[{ value: 'POST', label: 'POST' }, { value: 'GET', label: 'GET' }]}
+                      />
                     </div>
                     <div>
                       <Label className="text-[12px]">Content-Type</Label>
-                      <Select value={editing.content_type || 'application/json'} onValueChange={v => setEditing(p => ({ ...p, content_type: v }))}>
-                        <SelectTrigger className="mt-1 bg-background"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="application/json">application/json</SelectItem>
-                          <SelectItem value="application/x-www-form-urlencoded">application/x-www-form-urlencoded</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <SearchableSelect
+                        value={editing.content_type || 'application/json'}
+                        onValueChange={v => setEditing(p => ({ ...p, content_type: v }))}
+                        className="mt-1 bg-background"
+                        options={[
+                          { value: 'application/json', label: 'application/json' },
+                          { value: 'application/x-www-form-urlencoded', label: 'application/x-www-form-urlencoded' },
+                        ]}
+                      />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label className="text-[12px]">Forwarding Mode</Label>
-                      <Select value={editing.forwarding_mode || 'pass-through'} onValueChange={v => setEditing(p => ({ ...p, forwarding_mode: v }))}>
-                        <SelectTrigger className="mt-1 bg-background"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="pass-through">Pass-through (forward as-is)</SelectItem>
-                          <SelectItem value="template">Template (token substitution)</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <SearchableSelect
+                        value={editing.forwarding_mode || 'pass-through'}
+                        onValueChange={v => setEditing(p => ({ ...p, forwarding_mode: v }))}
+                        className="mt-1 bg-background"
+                        options={[
+                          { value: 'pass-through', label: 'Pass-through (forward as-is)' },
+                          { value: 'template', label: 'Template (token substitution)' },
+                        ]}
+                      />
                       <p className="text-[10px] text-muted-foreground mt-1">
                         Pass-through forwards inbound payload keys unchanged (merges HLR + calcs). Template uses the Payload Builder below.
                       </p>
@@ -632,14 +650,21 @@ function ResponseBuilderPanel({ mappings, onSave, onDelete, onSeed, editingMappi
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <Label className="text-[12px]">Field Path</Label>
-                <Input value={editingMapping.field_path || 'records[0].status'} onChange={e => setEditingMapping(p => ({ ...p, field_path: e.target.value }))} placeholder="records[0].status" className="mt-1 bg-background font-mono text-[12px]" />
+                <SearchableSelect
+                  value={editingMapping.field_path || 'records[0].status'}
+                  onValueChange={v => setEditingMapping(p => ({ ...p, field_path: v }))}
+                  className="mt-1 bg-background font-mono text-[12px]"
+                  options={FIELD_PATH_OPTIONS}
+                />
               </div>
               <div>
                 <Label className="text-[12px]">Operator</Label>
-                <Select value={editingMapping.operator || 'contains'} onValueChange={v => setEditingMapping(p => ({ ...p, operator: v }))}>
-                  <SelectTrigger className="mt-1 bg-background"><SelectValue /></SelectTrigger>
-                  <SelectContent>{OPERATORS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={editingMapping.operator || 'contains'}
+                  onValueChange={v => setEditingMapping(p => ({ ...p, operator: v }))}
+                  className="mt-1 bg-background"
+                  options={OPERATORS.map(o => ({ value: o.value, label: o.label }))}
+                />
               </div>
               <div>
                 <Label className="text-[12px]">Value {VALUE_LESS_OPS.includes(editingMapping.operator) && <span className="text-muted-foreground">(not needed)</span>}</Label>
@@ -653,10 +678,12 @@ function ResponseBuilderPanel({ mappings, onSave, onDelete, onSeed, editingMappi
               </div>
               <div>
                 <Label className="text-[12px]">Final Status</Label>
-                <Select value={editingMapping.final_status || 'Sold'} onValueChange={v => setEditingMapping(p => ({ ...p, final_status: v }))}>
-                  <SelectTrigger className="mt-1 bg-background"><SelectValue /></SelectTrigger>
-                  <SelectContent>{FINAL_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={editingMapping.final_status || 'Sold'}
+                  onValueChange={v => setEditingMapping(p => ({ ...p, final_status: v }))}
+                  className="mt-1 bg-background"
+                  options={FINAL_STATUSES.map(s => ({ value: s, label: s }))}
+                />
               </div>
               <div>
                 <Label className="text-[12px]">Sort Order</Label>

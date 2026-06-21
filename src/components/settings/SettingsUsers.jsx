@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { UserPlus } from 'lucide-react';
@@ -71,13 +71,15 @@ export default function SettingsUsers() {
             <div><Label className="text-[12px]">Email</Label><Input value={email} onChange={e => setEmail(e.target.value)} placeholder="user@example.com" className="mt-1 bg-background" /></div>
             <div>
               <Label className="text-[12px]">Role</Label>
-              <Select value={role} onValueChange={setRole}>
-                <SelectTrigger className="mt-1 bg-background"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="user">User</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                value={role}
+                onValueChange={setRole}
+                className="mt-1 bg-background"
+                options={[
+                  { value: 'user', label: 'User' },
+                  { value: 'admin', label: 'Admin' },
+                ]}
+              />
             </div>
           </div>
           <DialogFooter>

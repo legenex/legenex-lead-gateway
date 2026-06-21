@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
@@ -241,10 +241,12 @@ export default function SettingsCustomFields() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-[12px]">Type</Label>
-                <Select value={form.field_type} onValueChange={v => setForm(p => ({ ...p, field_type: v }))}>
-                  <SelectTrigger className="mt-1 bg-background"><SelectValue /></SelectTrigger>
-                  <SelectContent>{['string', 'number', 'boolean', 'date'].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={form.field_type}
+                  onValueChange={v => setForm(p => ({ ...p, field_type: v }))}
+                  className="mt-1 bg-background"
+                  options={['string', 'number', 'boolean', 'date'].map(t => ({ value: t, label: t }))}
+                />
               </div>
               <div><Label className="text-[12px]">LB Field Name</Label><Input value={form.leadbyte_field_name} onChange={e => setForm(p => ({ ...p, leadbyte_field_name: e.target.value }))} placeholder="defaults to field_name" className="mt-1 bg-background font-mono text-[12px]" /></div>
             </div>

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Copy, RefreshCw, Trash2, ShieldCheck, Terminal } from 'lucide-react';
@@ -253,23 +253,26 @@ export default function SettingsApiKeys() {
                 </div>
                 <div>
                   <Label className="text-[12px]">Type</Label>
-                  <Select value={form.type} onValueChange={v => setForm(p => ({ ...p, type: v, supplier_id: '' }))}>
-                    <SelectTrigger className="mt-1 bg-background"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="master">Master — no linked supplier, leads recorded as "Master"</SelectItem>
-                      <SelectItem value="supplier">Supplier — attributed to a specific supplier</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    value={form.type}
+                    onValueChange={v => setForm(p => ({ ...p, type: v, supplier_id: '' }))}
+                    className="mt-1 bg-background"
+                    options={[
+                      { value: 'master', label: 'Master — no linked supplier, leads recorded as "Master"' },
+                      { value: 'supplier', label: 'Supplier — attributed to a specific supplier' },
+                    ]}
+                  />
                 </div>
                 {form.type === 'supplier' && (
                   <div>
                     <Label className="text-[12px]">Linked Supplier</Label>
-                    <Select value={form.supplier_id} onValueChange={v => setForm(p => ({ ...p, supplier_id: v }))}>
-                      <SelectTrigger className="mt-1 bg-background"><SelectValue placeholder="Select supplier…" /></SelectTrigger>
-                      <SelectContent>
-                        {suppliers.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      value={form.supplier_id}
+                      onValueChange={v => setForm(p => ({ ...p, supplier_id: v }))}
+                      className="mt-1 bg-background"
+                      placeholder="Select supplier…"
+                      options={suppliers.map(s => ({ value: s.id, label: s.name }))}
+                    />
                   </div>
                 )}
               </div>

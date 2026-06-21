@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, Play, Save } from 'lucide-react';
 import { testHlr } from '@/functions/testHlr';
@@ -103,14 +103,16 @@ export default function Verification() {
           <Card className="bg-card border-border">
             <CardHeader><CardTitle className="text-[14px]">phone_verified Source</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-              <Select value={form.phone_verified_source} onValueChange={v => setForm(p => ({ ...p, phone_verified_source: v }))}>
-                <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="lh_hlr_response">lh_hlr_response (e.g. "Exact Match")</SelectItem>
-                  <SelectItem value="summary_score">summary_score (numeric 0–100)</SelectItem>
-                  <SelectItem value="boolean">boolean (true/false)</SelectItem>
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                value={form.phone_verified_source}
+                onValueChange={v => setForm(p => ({ ...p, phone_verified_source: v }))}
+                className="bg-background"
+                options={[
+                  { value: 'lh_hlr_response', label: 'lh_hlr_response (e.g. "Exact Match")' },
+                  { value: 'summary_score', label: 'summary_score (numeric 0–100)' },
+                  { value: 'boolean', label: 'boolean (true/false)' },
+                ]}
+              />
               <p className="text-[12px] text-muted-foreground leading-relaxed">{phoneVerifiedSourceDescriptions[form.phone_verified_source]}</p>
             </CardContent>
           </Card>
@@ -118,14 +120,16 @@ export default function Verification() {
           <Card className="bg-card border-border">
             <CardHeader><CardTitle className="text-[14px]">Fail Mode</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-              <Select value={form.fail_mode} onValueChange={v => setForm(p => ({ ...p, fail_mode: v }))}>
-                <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="fail_open">Fail Open</SelectItem>
-                  <SelectItem value="fail_closed">Fail Closed</SelectItem>
-                  <SelectItem value="forward_blank">Forward Blank</SelectItem>
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                value={form.fail_mode}
+                onValueChange={v => setForm(p => ({ ...p, fail_mode: v }))}
+                className="bg-background"
+                options={[
+                  { value: 'fail_open', label: 'Fail Open' },
+                  { value: 'fail_closed', label: 'Fail Closed' },
+                  { value: 'forward_blank', label: 'Forward Blank' },
+                ]}
+              />
               <p className="text-[12px] text-muted-foreground leading-relaxed">{failModeDescriptions[form.fail_mode]}</p>
             </CardContent>
           </Card>

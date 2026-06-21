@@ -10,10 +10,8 @@ import { Badge } from '@/components/ui/badge';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from '@/components/ui/dialog';
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
-} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Plus, Pencil, Trash2, Calculator } from 'lucide-react';
 
 const DEFAULT_DATE_BUCKETS = [
@@ -240,25 +238,24 @@ export default function CustomCalculations() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>Input Field</Label>
-                <Select value={form.input_field} onValueChange={v => setF('input_field', v)}>
-                  <SelectTrigger><SelectValue placeholder="Select field…" /></SelectTrigger>
-                  <SelectContent>
-                    {inboundFields.map(f => (
-                      <SelectItem key={f.field_name} value={f.field_name}>{f.label || f.field_name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={form.input_field}
+                  onValueChange={v => setF('input_field', v)}
+                  options={inboundFields.map(f => ({ value: f.field_name, label: f.label || f.field_name }))}
+                  placeholder="Select field…"
+                />
               </div>
               <div className="space-y-1.5">
                 <Label>Transform Type</Label>
-                <Select value={form.transform_type} onValueChange={v => setF('transform_type', v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="date_age_bucket">Date Age Bucket</SelectItem>
-                    <SelectItem value="value_map">Value Map</SelectItem>
-                    <SelectItem value="script">Script</SelectItem>
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={form.transform_type}
+                  onValueChange={v => setF('transform_type', v)}
+                  options={[
+                    { value: 'date_age_bucket', label: 'Date Age Bucket' },
+                    { value: 'value_map', label: 'Value Map' },
+                    { value: 'script', label: 'Script' },
+                  ]}
+                />
               </div>
             </div>
 

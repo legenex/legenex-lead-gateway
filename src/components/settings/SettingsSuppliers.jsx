@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Copy, RefreshCw, Eye, EyeOff } from 'lucide-react';
@@ -296,14 +296,16 @@ export default function SettingsSuppliers() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label className="text-[12px]">Payout Type</Label>
-                    <Select value={form.payout_type} onValueChange={v => setForm(p => ({ ...p, payout_type: v }))}>
-                      <SelectTrigger className="mt-1 bg-background"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Ping-Post">Ping-Post</SelectItem>
-                        <SelectItem value="Inbound Call">Inbound Call</SelectItem>
-                        <SelectItem value="Flat CPL">Flat CPL</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      value={form.payout_type}
+                      onValueChange={v => setForm(p => ({ ...p, payout_type: v }))}
+                      className="mt-1 bg-background"
+                      options={[
+                        { value: 'Ping-Post', label: 'Ping-Post' },
+                        { value: 'Inbound Call', label: 'Inbound Call' },
+                        { value: 'Flat CPL', label: 'Flat CPL' },
+                      ]}
+                    />
                   </div>
                   <div><Label className="text-[12px]">Brand</Label><Input value={form.brand} onChange={e => setForm(p => ({ ...p, brand: e.target.value }))} className="mt-1 bg-background" /></div>
                 </div>
