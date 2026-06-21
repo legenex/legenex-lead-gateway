@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -14,12 +14,18 @@ import { Copy, RotateCcw, Trash2, Archive, Pencil } from 'lucide-react';
 import { format } from 'date-fns';
 import { processLead } from '@/functions/processLead';
 
-export default function LeadDetailModal({ lead, open, onClose }) {
+export default function LeadDetailModal({ lead, open, onClose, initialTab = 'summary' }) {
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [editFields, setEditFields] = useState({});
   const [resending, setResending] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState('');
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  // Sync active tab when a new lead or initial tab is requested
+  useEffect(() => {
+    if (open) setActiveTab(initialTab);
+  }, [open, initialTab]);
 
   if (!lead) return null;
 
@@ -92,7 +98,7 @@ export default function LeadDetailModal({ lead, open, onClose }) {
           </div>
         </DialogHeader>
 
-        <Tabs defaultValue="summary" className="mt-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
           <TabsList className="bg-muted">
             <TabsTrigger value="summary">Summary</TabsTrigger>
             <TabsTrigger value="raw">Raw Data</TabsTrigger>
