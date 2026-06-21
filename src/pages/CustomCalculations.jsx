@@ -13,6 +13,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Plus, Pencil, Trash2, Calculator } from 'lucide-react';
+import { OutputFieldPicker } from '@/components/calculations/OutputFieldPicker';
 
 const DEFAULT_DATE_BUCKETS = [
   { label: 'Within 7 Days', max_days: 7 },
@@ -107,18 +108,21 @@ export default function CustomCalculations() {
       return base44.entities.CustomCalculation.create(data);
     },
     onSuccess: async (saved) => {
-      // Sync output_token as a CustomField so it appears in payload builder
+      // Sync output_token as a Calculated CustomField so it appears in payload builder
       const existing = customFields.find(f => f.field_name === form.output_token);
       if (!existing) {
         await base44.entities.CustomField.create({
           field_name: form.output_token,
           label: form.output_label || form.output_token,
-          field_type: 'string',
+          field_type: 'Calculated',
           source: 'inbound',
           include_in_leadbyte: true,
           leadbyte_field_name: form.output_token,
           auto_created: true,
         });
+      } else if (existing.field_type !== 'Calculated') {
+        // Ensure existing field is typed as Calculated when reused as a calculation output
+        await base44.entities.CustomField.update(existing.id, { field_type: 'Calculated' });
       }
       qc.invalidateQueries(['custom-calculations']);
       qc.invalidateQueries(['custom-fields']);
@@ -224,27 +228,33 @@ export default function CustomCalculations() {
           </DialogHeader>
 
           <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label>Output Token <span className="text-muted-foreground text-xs">(used as {'{{token}}'})</span></Label>
-                <Input value={form.output_token} onChange={e => setF('output_token', e.target.value.replace(/\s/g, '_'))} placeholder="accident_date" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Output Label</Label>
-                <Input value={form.output_label} onChange={e => setF('output_label', e.target.value)} placeholder="Accident Date Bucket" />
-              </div>
+            {/* Input Field — at the TOP */}
+            <div className="space-y-1.5">
+              <Label>Input Field</Label>
+              <SearchableSelect
+                value={form.input_field}
+                onValueChange={v => setF('input_field', v)}
+                options={inboundFields.map(f => ({ value: f.field_name, label: f.label || f.field_name }))}
+                placeholder="Select field…"
+              />
+            </div>
+
+            {/* Output Field — directly below Input Field, searchable with inline create */}
+            <div className="space-y-1.5">
+              <Label>Output Field <span className="text-muted-foreground text-xs">(used as {'{{token}}'})</span></Label>
+              <OutputFieldPicker
+                value={form.output_token}
+                onValueChange={({ field_name, label }) => setForm(f => ({ ...f, output_token: field_name, output_label: label }))}
+                fields={customFields}
+                placeholder="Select or create output field…"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Output Label: <span className="text-foreground font-medium">{form.output_label || form.output_token || '—'}</span>
+                <span className="text-muted-foreground"> (follows the selected field's label)</span>
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label>Input Field</Label>
-                <SearchableSelect
-                  value={form.input_field}
-                  onValueChange={v => setF('input_field', v)}
-                  options={inboundFields.map(f => ({ value: f.field_name, label: f.label || f.field_name }))}
-                  placeholder="Select field…"
-                />
-              </div>
               <div className="space-y-1.5">
                 <Label>Transform Type</Label>
                 <SearchableSelect
@@ -256,6 +266,10 @@ export default function CustomCalculations() {
                     { value: 'script', label: 'Script' },
                   ]}
                 />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Output Label</Label>
+                <Input value={form.output_label} onChange={e => setF('output_label', e.target.value)} placeholder={form.output_token || 'Accident Date Bucket'} />
               </div>
             </div>
 

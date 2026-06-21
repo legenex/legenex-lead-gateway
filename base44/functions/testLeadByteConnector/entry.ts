@@ -41,14 +41,11 @@ Deno.serve(async (req) => {
   const connector = connectors[0];
   if (!connector) return Response.json({ error: 'Connector not found' }, { status: 404 });
 
-  // Build payload based on forwarding mode
+  // The Actual LeadByte Payload (payload_template) is always used to build the outbound
+  // body. The test_payload is a sample INBOUND lead; the template resolves {{token}}
+  // placeholders against it. Missing tokens resolve to empty string.
   const mode = connector.forwarding_mode || 'template';
-  let outboundPayload;
-  if (mode === 'pass-through') {
-    outboundPayload = { ...test_payload };
-  } else {
-    outboundPayload = buildPayloadFromTemplate(connector.payload_template, test_payload);
-  }
+  const outboundPayload = buildPayloadFromTemplate(connector.payload_template, test_payload);
 
   // Build headers from connector header rows
   const headerRowsParsed = typeof connector.headers === 'string'

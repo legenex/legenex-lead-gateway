@@ -12,75 +12,9 @@ import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import JsonViewer from '@/components/shared/JsonViewer';
 import { testLeadByteConnector } from '@/functions/testLeadByteConnector';
+import { ActualPayloadEditor, buildDefaultActualPayload } from '@/components/settings/ActualPayloadEditor';
 import { Plus, Save, Play, Loader2, Trash2, Copy, ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
-
-const DEFAULT_TEMPLATE = `{
-  "campid": "LEGAL-MVA-USA",
-  "email": "{{email}}",
-  "firstname": "{{first_name}}",
-  "lastname": "{{last_name}}",
-  "geo_city": "{{_geoip_city}}",
-  "geo_state": "{{_geoip_regionCode}}",
-  "geo_zip": "{{_geoip_zip}}",
-  "country": "{{_geoip_countryName}}",
-  "zip": "{{zip}}",
-  "ipaddress": "{{ip_address}}",
-  "phone1": "{{mobile}}",
-  "source": "{{source}}",
-  "c1": "{{s1}}",
-  "c2": "{{s2}}",
-  "c3": "{{s3}}",
-  "sid": "{{sid}}",
-  "ssid": "{{ssid}}",
-  "optinurl": "{{optin_url}}",
-  "incident_date": "{{incident_date}}",
-  "accident_state": "{{accident_state}}",
-  "accident_state_2": "{{accident_state_2}}",
-  "accident_type": "{{accident_type}}",
-  "accident_details": "{{accident_details}}",
-  "injured": "{{injured}}",
-  "injury_type": "{{injury_type}}",
-  "type_of_injury": "{{type_of_injury}}",
-  "treatment": "{{treatment}}",
-  "treatment_type": "{{treatment_type}}",
-  "treatment_time": "{{treatment_time}}",
-  "fault": "{{fault}}",
-  "attorney": "No",
-  "has_attorney": "{{has_attorney}}",
-  "insurance": "{{insurance}}",
-  "police_report": "{{police_report}}",
-  "phone_verified": "{{phone_verified}}",
-  "trustedform_url": "{{trustedform_url}}",
-  "jornaya_token": "{{jornaya_token}}",
-  "supplier_brand": "{{supplier_brand}}",
-  "tier": "{{tier}}",
-  "vertical": "MVA",
-  "client_type": "{{client_type}}",
-  "user_agent": "{{user_agent}}",
-  "utm_source": "{{utm_source}}",
-  "utm_campaign": "{{utm_campaign}}",
-  "utm_medium": "{{utm_medium}}",
-  "utm_content": "{{utm_content}}",
-  "utm_terms": "{{utm_terms}}",
-  "utm_ad_label": "{{ad_label}}",
-  "timezone": "{{timezone}}",
-  "tc_id": "{{tc_id}}",
-  "event_time": "{{event_time}}",
-  "event_id": "{{event_id}}",
-  "email_hash": "{{email_hash}}",
-  "phone_hash": "{{phone_hash}}",
-  "first_name_hash": "{{first_name_hash}}",
-  "last_name_hash": "{{last_name_hash}}",
-  "city_hash": "{{city_hash}}",
-  "state_hash": "{{state_hash}}",
-  "zip_hash": "{{zip_hash}}",
-  "country_hash": "{{country_hash}}",
-  "external_id_hash": "{{external_id_hash}}",
-  "fbc": "{{fbc}}",
-  "fbp": "{{fbp}}",
-  "content_name": "{{content_name}}"
-}`;
 
 const DEFAULT_TEST_PAYLOAD = {
   campid: "LEGAL-MVA-USA",
@@ -208,7 +142,15 @@ export default function SettingsLeadByte() {
   });
 
   const openEdit = (conn) => {
-    setEditing({ ...conn });
+    // Migrate pass-through connectors to template (Actual Payload) mode by default,
+    // since the Actual Payload now reproduces pass-through output. Pre-fill the
+    // payload_template if it's empty so the user sees the current outbound shape.
+    const mode = conn.forwarding_mode || 'template';
+    let payloadTemplate = conn.payload_template;
+    if (!payloadTemplate || mode === 'pass-through') {
+      payloadTemplate = buildDefaultActualPayload(customFields);
+    }
+    setEditing({ ...conn, forwarding_mode: 'template', payload_template: payloadTemplate });
     setHeaderRows(parseHeaderRows(conn.headers));
     setTestResult(null);
     setTestPayloadStr(conn.test_payload_last_used || JSON.stringify(DEFAULT_TEST_PAYLOAD, null, 2));
@@ -226,8 +168,8 @@ export default function SettingsLeadByte() {
     setEditing({
       api_name: '', target_url: '', http_method: 'POST',
       content_type: 'application/json', headers: '[]',
-      payload_template: DEFAULT_TEMPLATE, enabled: true, is_default: false,
-      forwarding_mode: 'pass-through',
+      payload_template: buildDefaultActualPayload(customFields), enabled: true, is_default: false,
+      forwarding_mode: 'template',
     });
     setHeaderRows([{ key: 'X_KEY', value: '' }, { key: 'Content-Type', value: 'application/json' }]);
     setTestResult(null);
@@ -385,7 +327,7 @@ export default function SettingsLeadByte() {
                         ]}
                       />
                       <p className="text-[10px] text-muted-foreground mt-1">
-                        Pass-through forwards inbound payload keys unchanged (merges HLR + calcs). Template uses the Payload Builder below.
+                        The Actual LeadByte Payload below is always sent. Mode is kept for compatibility — Template (recommended) uses the editable payload; Pass-through is legacy.
                       </p>
                     </div>
                     <div className="flex items-end">
@@ -415,15 +357,12 @@ export default function SettingsLeadByte() {
                 </CardContent>
               </Card>
 
-              {(!editing.forwarding_mode || editing.forwarding_mode === 'template') && (
-                <Card className="bg-card border-border">
-                  <CardHeader className="pb-2"><CardTitle className="text-[13px]">Payload Builder</CardTitle></CardHeader>
-                  <CardContent>
-                    <p className="text-[11px] text-muted-foreground mb-2">Use <code className="bg-muted px-1 rounded text-primary">{'{{token}}'}</code> placeholders.</p>
-                    <Textarea value={editing.payload_template || DEFAULT_TEMPLATE} onChange={e => setEditing(p => ({ ...p, payload_template: e.target.value }))} className="bg-background font-mono text-[12px] min-h-[400px] leading-relaxed" />
-                  </CardContent>
-                </Card>
-              )}
+              {/* Actual LeadByte Payload — always visible, editable outbound definition */}
+              <ActualPayloadEditor
+                value={editing.payload_template || '{}'}
+                onChange={v => setEditing(p => ({ ...p, payload_template: v }))}
+                customFields={customFields}
+              />
 
               {/* Test Lead Collapsible Section */}
               <Collapsible open={testLeadExpanded} onOpenChange={setTestLeadExpanded} className="bg-card border border-border rounded-lg">
@@ -436,12 +375,12 @@ export default function SettingsLeadByte() {
                   </button>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="px-4 pb-4 pt-2 space-y-4">
-                  <p className="text-[11px] text-muted-foreground">
-                    Posts directly to <code className="bg-muted px-1 rounded text-primary font-mono">{editing.target_url}</code> using this connector's headers and forwarding mode (<strong>{editing.forwarding_mode || 'pass-through'}</strong>). No HLR is run and no gateway lead is created.
-                  </p>
+                  <div className="rounded-md border border-primary/30 bg-primary/5 p-2.5 text-[11px] text-muted-foreground">
+                    <span className="text-foreground font-semibold">Test Payload = sample INBOUND lead.</span> This is different from the <span className="text-foreground font-semibold">Actual LeadByte Payload</span> (the OUTBOUND definition sent to LeadByte). The test resolves the Actual Payload's <code className="bg-muted px-1 rounded text-primary">{'{{token}}'}</code> placeholders against this sample inbound lead, then posts the result directly to <code className="bg-muted px-1 rounded text-primary font-mono">{editing.target_url}</code>. No HLR is run and no gateway lead is created.
+                  </div>
 
                   <div>
-                    <Label className="text-[11px] font-semibold text-muted-foreground">Test Payload (editable)</Label>
+                    <Label className="text-[11px] font-semibold text-muted-foreground">Test Payload (sample inbound lead)</Label>
                     <Textarea
                       value={testPayloadStr}
                       onChange={e => setTestPayloadStr(e.target.value)}

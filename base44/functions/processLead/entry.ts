@@ -305,6 +305,10 @@ Deno.serve(async (req) => {
       return Response.json({ Response: 'Error', message: 'No active LeadByte connector configured' }, { status: 200 });
     }
 
+    // The Actual LeadByte Payload (payload_template) is always used to build the outbound
+    // body, regardless of forwarding_mode. Token resolution pulls from the raw inbound
+    // payload (by exact key), HLR results, and Calculated field outputs. A token with no
+    // value resolves to an empty string.
     const leadBytePayload = buildPayloadFromTemplate(leadByteConnector.payload_template, enrichedData);
 
     await base44.asServiceRole.entities.Lead.update(leadId, {

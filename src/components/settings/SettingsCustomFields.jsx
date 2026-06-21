@@ -245,7 +245,7 @@ export default function SettingsCustomFields() {
                   value={form.field_type}
                   onValueChange={v => setForm(p => ({ ...p, field_type: v }))}
                   className="mt-1 bg-background"
-                  options={['string', 'number', 'boolean', 'date'].map(t => ({ value: t, label: t }))}
+                  options={['string', 'number', 'boolean', 'date', 'Calculated'].map(t => ({ value: t, label: t }))}
                 />
               </div>
               <div><Label className="text-[12px]">LB Field Name</Label><Input value={form.leadbyte_field_name} onChange={e => setForm(p => ({ ...p, leadbyte_field_name: e.target.value }))} placeholder="defaults to field_name" className="mt-1 bg-background font-mono text-[12px]" /></div>
