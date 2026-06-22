@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import JsonViewer from '@/components/shared/JsonViewer';
 import { testCapiConnector } from '@/functions/testCapiConnector';
+import TransformsReference from '@/components/settings/TransformsReference';
 import { Plus, Save, Trash2, Play, Loader2, Eye, EyeOff, Zap, Globe } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -52,24 +53,24 @@ const DEFAULT_TEST_PAYLOAD = {
 const DEFAULT_CAPI_TEMPLATE = JSON.stringify({
   data: [{
     event_name: "Lead",
-    event_time: "{_c_eventtime}",
+    event_time: "{{event_time}}",
     action_source: "website",
-    event_id: "{event_id}",
-    event_source_url: "{_c_eventurl}",
+    event_id: "{{event_id}}",
+    event_source_url: "{{optin_url}}",
     user_data: {
-      client_user_agent: "{_device_userAgent}",
-      client_ip_address: "{ip_address}",
-      fbc: "{_tracking__fbc}",
-      fbp: "{_tracking__fbp}",
-      em: "{email|sha256}",
-      ph: "{mobile_raw|phone_us|sha256}",
-      fn: "{first_name|lowercase|sha256}",
-      ln: "{last_name|lowercase|sha256}",
-      ct: "{_geoip_city|sha256}",
-      st: "{_geoip_regionName|sha256}",
-      zp: "{zip|sha256}",
-      country: "{_geoip_countryName|sha256}",
-      external_id: "{lead_id|sha256}"
+      client_user_agent: "{{user_agent}}",
+      client_ip_address: "{{ip_address}}",
+      fbc: "{{fbc}}",
+      fbp: "{{fbp}}",
+      em: "{{email}}",
+      ph: "{{mobile}}",
+      fn: "{{first_name}}",
+      ln: "{{last_name}}",
+      ct: "{{geoip_city}}",
+      st: "{{geoip_state}}",
+      zp: "{{zip}}",
+      country: "{{geoip_country}}",
+      external_id: "{{lead_id}}"
     },
     custom_data: {
       content_name: "Check A Case Lead",
@@ -80,7 +81,7 @@ const DEFAULT_CAPI_TEMPLATE = JSON.stringify({
       qualification_status: "Qualified Lead",
       event_category: "Lead",
       lead_event_type: "Lead",
-      value: "{conv_value}",
+      value: "{{conv_value}}",
       currency: "USD"
     }
   }]
@@ -119,6 +120,7 @@ export default function SettingsApiConnectors() {
       filter_brands: '[]', filter_suppliers: '[]', filter_supplier_types: '[]',
       fb_pixel_id: '', fb_access_token: '', fb_test_event_code: '', fb_api_version: 'v21.0',
       lead_event_name: 'Lead', sold_event_name: 'SubmittedApplication', action_source: 'website',
+      auto_hash_capi: true,
       target_url: '', http_method: 'POST', content_type: 'application/json',
       headers: '[]', payload_template: DEFAULT_CAPI_TEMPLATE, triggers: '["on_received"]',
     });
@@ -336,10 +338,18 @@ export default function SettingsApiConnectors() {
                 <div><Label className="text-[12px]">Sold Event Name</Label><Input value={editing.sold_event_name || 'SubmittedApplication'} onChange={e => setF('sold_event_name', e.target.value)} className="mt-1 bg-background" /></div>
                 <div><Label className="text-[12px]">Action Source</Label><Input value={editing.action_source || 'website'} onChange={e => setF('action_source', e.target.value)} className="mt-1 bg-background" /></div>
               </div>
+              <div className="flex items-center gap-2 pt-1 border-t border-border">
+                <Switch checked={editing.auto_hash_capi !== false} onCheckedChange={v => setF('auto_hash_capi', v)} />
+                <Label className="text-[12px]">Auto Hash Facebook CAPI Fields</Label>
+                <p className="text-[10px] text-muted-foreground ml-2">When ON, user_data PII fields (em, ph, fn, ln, ct, st, zp, country, external_id) are automatically SHA-256 hashed after normalization. Manual <code className="text-primary">|sha256</code> tokens are respected and not double-hashed.</p>
+              </div>
 
               {/* Send Test Event */}
               <div className="pt-2 border-t border-border space-y-3">
-                <div className="text-[12px] font-semibold text-muted-foreground uppercase tracking-wider">CAPI Payload Template (test resolves tokens with sample data)</div>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="text-[12px] font-semibold text-muted-foreground uppercase tracking-wider">CAPI Payload Template (test resolves tokens with sample data)</div>
+                  <div className="w-[160px] shrink-0"><TransformsReference /></div>
+                </div>
                 <Textarea value={testPayloadStr} onChange={e => setTestPayloadStr(e.target.value)} className="bg-background font-mono text-[11px] min-h-[340px] leading-relaxed" />
                 <Button onClick={sendTestEvent} disabled={sendingTest || !editing.id} className="gap-1.5">
                   {sendingTest ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}

@@ -13,6 +13,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import JsonViewer from '@/components/shared/JsonViewer';
 import { testLeadByteConnector } from '@/functions/testLeadByteConnector';
 import { ActualPayloadEditor, buildDefaultActualPayload } from '@/components/settings/ActualPayloadEditor';
+import TransformsReference from '@/components/settings/TransformsReference';
 import { Plus, Save, Play, Loader2, Trash2, Copy, ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -434,6 +435,7 @@ export default function SettingsLeadByte() {
           <Card className="bg-card border-border sticky top-4">
             <CardHeader className="pb-2"><CardTitle className="text-[13px]">Token Reference</CardTitle></CardHeader>
             <CardContent className="space-y-3 max-h-[70vh] overflow-y-auto">
+              <TransformsReference />
               <div>
                 <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Lead Fields</div>
                 <div className="space-y-1">
