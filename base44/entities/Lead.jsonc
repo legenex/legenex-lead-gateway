@@ -95,6 +95,10 @@
       "type": "boolean",
       "description": "Whether the TrustedForm cert URL passed validation"
     },
+    "cert_source": {
+      "type": "string",
+      "description": "Origin of the TrustedForm cert: inbound or backup_store"
+    },
     "capi_log": {
       "type": "string",
       "description": "JSON list of {connector, event_name, pixel, http_status, fbtrace_id}"
@@ -122,5 +126,27 @@
   "required": [
     "supplier_name",
     "final_status"
-  ]
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
 }
