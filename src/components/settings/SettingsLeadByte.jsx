@@ -71,7 +71,7 @@ const DEFAULT_TEST_PAYLOAD = {
 };
 
 const HLR_TOKENS = ['phone_verified', 'hlr_status', 'hlr_score', 'country_code'];
-const FINAL_STATUSES = ['Sold', 'Unsold', 'Error'];
+const FINAL_STATUSES = ['Sold', 'Unsold', 'Queued', 'Error'];
 const OPERATORS = [
   { value: 'equals', label: 'equals' },
   { value: 'not_equals', label: 'not equals' },
@@ -109,7 +109,7 @@ function parseHeaderRows(val) {
   return Object.entries(val).map(([key, value]) => ({ key, value }));
 }
 
-const statusColor = { Sold: 'text-green-400', Unsold: 'text-yellow-400', Error: 'text-red-400' };
+const statusColor = { Sold: 'text-green-400', Unsold: 'text-yellow-400', Queued: 'text-purple-400', Error: 'text-red-400' };
 
 export default function SettingsLeadByte() {
   const qc = useQueryClient();

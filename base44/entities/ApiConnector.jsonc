@@ -1,0 +1,98 @@
+{
+  "name": "ApiConnector",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "facebook_capi",
+        "webhook",
+        "generic_http"
+      ],
+      "default": "facebook_capi"
+    },
+    "enabled": {
+      "type": "boolean",
+      "default": true
+    },
+    "sort_order": {
+      "type": "number",
+      "default": 0
+    },
+    "filter_brands": {
+      "type": "string",
+      "description": "JSON array of brand names to match. Empty array = match all"
+    },
+    "filter_suppliers": {
+      "type": "string",
+      "description": "JSON array of supplier names or SIDs to match. Empty array = match all"
+    },
+    "filter_supplier_types": {
+      "type": "string",
+      "description": "JSON array of supplier types (Internal, External, Calls) to match. Empty array = match all"
+    },
+    "fb_pixel_id": {
+      "type": "string"
+    },
+    "fb_access_token": {
+      "type": "string",
+      "description": "Facebook CAPI access token (masked in UI)"
+    },
+    "fb_test_event_code": {
+      "type": "string"
+    },
+    "fb_api_version": {
+      "type": "string",
+      "default": "v21.0"
+    },
+    "lead_event_name": {
+      "type": "string",
+      "default": "Lead"
+    },
+    "sold_event_name": {
+      "type": "string",
+      "default": "SubmittedApplication"
+    },
+    "action_source": {
+      "type": "string",
+      "default": "website"
+    },
+    "target_url": {
+      "type": "string"
+    },
+    "http_method": {
+      "type": "string",
+      "enum": [
+        "POST",
+        "GET"
+      ],
+      "default": "POST"
+    },
+    "content_type": {
+      "type": "string",
+      "enum": [
+        "application/json",
+        "application/x-www-form-urlencoded"
+      ],
+      "default": "application/json"
+    },
+    "headers": {
+      "type": "string",
+      "description": "JSON array of {key, value} header rows"
+    },
+    "payload_template": {
+      "type": "string",
+      "description": "JSON template string with {{token}} placeholders"
+    },
+    "triggers": {
+      "type": "string",
+      "description": "JSON array of: on_received, on_sold, on_unsold, on_queued"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

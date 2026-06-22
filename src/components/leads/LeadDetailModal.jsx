@@ -104,6 +104,7 @@ export default function LeadDetailModal({ lead, open, onClose, initialTab = 'sum
             <TabsTrigger value="raw">Raw Data</TabsTrigger>
             <TabsTrigger value="hlr">HLR Trace</TabsTrigger>
             <TabsTrigger value="leadbyte">LeadByte Trace</TabsTrigger>
+            <TabsTrigger value="capi">CAPI Log</TabsTrigger>
           </TabsList>
 
           <TabsContent value="summary" className="space-y-4 mt-4">
@@ -132,6 +133,8 @@ export default function LeadDetailModal({ lead, open, onClose, initialTab = 'sum
                   ['LeadByte Lead ID', lead.leadbyte_lead_id],
                   ['Queue ID', lead.leadbyte_queue_id],
                   ['Process Time', lead.process_time_ms ? `${lead.process_time_ms}ms` : '—'],
+                  ['TrustedForm Valid', lead.trustedform_valid === true ? 'Yes' : lead.trustedform_valid === false ? 'No' : '—'],
+                  ['Queue Reason', lead.queue_reason || '—'],
                 ].map(([label, val]) => (
                   <div key={label}>
                     <div className="text-[11px] text-muted-foreground uppercase tracking-wider">{label}</div>
@@ -157,6 +160,10 @@ export default function LeadDetailModal({ lead, open, onClose, initialTab = 'sum
           <TabsContent value="leadbyte" className="mt-4 space-y-4">
             <JsonViewer data={lead.leadbyte_request} title="LeadByte Request" />
             <JsonViewer data={lead.leadbyte_response} title="LeadByte Response" />
+          </TabsContent>
+
+          <TabsContent value="capi" className="mt-4">
+            <JsonViewer data={lead.capi_log} title="CAPI Event Log" />
           </TabsContent>
         </Tabs>
 

@@ -16,7 +16,7 @@ import { toast } from 'sonner';
 const BLANK_FIELD = {
   field_name: '', label: '', field_type: 'string',
   source: 'inbound', include_in_leadbyte: true,
-  leadbyte_field_name: '', system_populated: false,
+  leadbyte_field_name: '', system_populated: false, required: false,
 };
 
 function guessType(value) {
@@ -59,6 +59,7 @@ export default function SettingsCustomFields() {
       include_in_leadbyte: f.include_in_leadbyte ?? true,
       leadbyte_field_name: f.leadbyte_field_name || '',
       system_populated: f.system_populated ?? false,
+      required: f.required ?? false,
     });
     setEditingId(f.id);
     setEditModal(true);
@@ -70,7 +71,7 @@ export default function SettingsCustomFields() {
       field_type: f.field_type || 'string', source: f.source || 'inbound',
       include_in_leadbyte: f.include_in_leadbyte ?? true,
       leadbyte_field_name: f.leadbyte_field_name ? f.leadbyte_field_name + '_copy' : '',
-      system_populated: false,
+      system_populated: false, required: f.required ?? false,
     });
     setEditingId(null);
     setEditModal(true);
@@ -210,7 +211,10 @@ export default function SettingsCustomFields() {
                           </td>
                           <td className="px-4 py-2.5 font-mono text-[11px] text-muted-foreground">{f.leadbyte_field_name || f.field_name}</td>
                           <td className="px-4 py-2.5">
-                            {f.system_populated && <Badge className="bg-primary/10 text-primary text-[10px]">HLR-filled</Badge>}
+                            <div className="flex flex-wrap gap-1">
+                              {f.system_populated && <Badge className="bg-primary/10 text-primary text-[10px]">HLR-filled</Badge>}
+                              {f.required && <Badge className="bg-status-queued status-queued text-[10px]">Required</Badge>}
+                            </div>
                           </td>
                           <td className="px-4 py-2.5">
                             <div className="flex items-center gap-1">
@@ -253,6 +257,7 @@ export default function SettingsCustomFields() {
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2"><Switch checked={form.include_in_leadbyte} onCheckedChange={v => setForm(p => ({ ...p, include_in_leadbyte: v }))} /><Label className="text-[12px]">Send to LeadByte</Label></div>
               <div className="flex items-center gap-2"><Switch checked={form.system_populated} onCheckedChange={v => setForm(p => ({ ...p, system_populated: v }))} /><Label className="text-[12px]">HLR-filled</Label></div>
+              <div className="flex items-center gap-2"><Switch checked={form.required} onCheckedChange={v => setForm(p => ({ ...p, required: v }))} /><Label className="text-[12px]">Required (gate)</Label></div>
             </div>
           </div>
           <DialogFooter>

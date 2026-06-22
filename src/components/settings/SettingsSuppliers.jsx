@@ -20,7 +20,7 @@ function generateKey() {
 }
 
 const DEFAULT_FORM = {
-  name: '', sid: '', payout_type: 'Flat CPL', email: '',
+  name: '', sid: '', supplier_type: '', payout_type: 'Flat CPL', email: '',
   landing_page_url: '', brand: '', active: true,
 };
 
@@ -86,6 +86,7 @@ export default function SettingsSuppliers() {
     setForm({
       name: supplier.name || '',
       sid: supplier.sid || '',
+      supplier_type: supplier.supplier_type || '',
       payout_type: supplier.payout_type || 'Flat CPL',
       email: supplier.email || '',
       landing_page_url: supplier.landing_page_url || '',
@@ -211,14 +212,14 @@ export default function SettingsSuppliers() {
         <table className="w-full text-[13px]">
           <thead>
             <tr className="border-b border-border bg-muted/50">
-              {['Supplier', 'SID', 'Brand', 'Type', 'Key', 'Last Used', 'Requests', 'Actions'].map(h => (
+              {['Supplier', 'SID', 'Brand', 'Sup Type', 'Pay Type', 'Key', 'Last Used', 'Requests', 'Actions'].map(h => (
                 <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {suppliers.length === 0 && (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">No suppliers yet</td></tr>
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">No suppliers yet</td></tr>
             )}
             {suppliers.map(s => {
               const k = getKeyForSupplier(s.id);
@@ -232,6 +233,7 @@ export default function SettingsSuppliers() {
                   </td>
                   <td className="px-4 py-3 font-mono text-[11px] text-muted-foreground">{s.sid || '—'}</td>
                   <td className="px-4 py-3 text-muted-foreground">{s.brand || '—'}</td>
+                  <td className="px-4 py-3"><Badge variant="outline" className={`text-[10px] ${s.supplier_type === 'Internal' ? 'status-sold bg-status-sold' : s.supplier_type === 'Calls' ? 'status-queued bg-status-queued' : 'text-muted-foreground'}`}>{s.supplier_type || '—'}</Badge></td>
                   <td className="px-4 py-3"><Badge variant="outline" className="text-[10px]">{s.payout_type}</Badge></td>
                   <td className="px-4 py-3">
                     {k ? (
@@ -295,6 +297,19 @@ export default function SettingsSuppliers() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
+                    <Label className="text-[12px]">Supplier Type *</Label>
+                    <SearchableSelect
+                      value={form.supplier_type}
+                      onValueChange={v => setForm(p => ({ ...p, supplier_type: v }))}
+                      className="mt-1 bg-background"
+                      options={[
+                        { value: 'Internal', label: 'Internal' },
+                        { value: 'External', label: 'External' },
+                        { value: 'Calls', label: 'Calls' },
+                      ]}
+                    />
+                  </div>
+                  <div>
                     <Label className="text-[12px]">Payout Type</Label>
                     <SearchableSelect
                       value={form.payout_type}
@@ -307,15 +322,17 @@ export default function SettingsSuppliers() {
                       ]}
                     />
                   </div>
-                  <div><Label className="text-[12px]">Brand</Label><Input value={form.brand} onChange={e => setForm(p => ({ ...p, brand: e.target.value }))} className="mt-1 bg-background" /></div>
                 </div>
-                <div><Label className="text-[12px]">Email</Label><Input value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} className="mt-1 bg-background" /></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label className="text-[12px]">Brand</Label><Input value={form.brand} onChange={e => setForm(p => ({ ...p, brand: e.target.value }))} className="mt-1 bg-background" /></div>
+                  <div><Label className="text-[12px]">Email</Label><Input value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} className="mt-1 bg-background" /></div>
+                </div>
                 <div><Label className="text-[12px]">Landing Page URL</Label><Input value={form.landing_page_url} onChange={e => setForm(p => ({ ...p, landing_page_url: e.target.value }))} className="mt-1 bg-background font-mono text-[12px]" /></div>
                 <div className="flex items-center gap-2"><Switch checked={form.active} onCheckedChange={v => setForm(p => ({ ...p, active: v }))} /><Label className="text-[12px]">Active</Label></div>
               </div>
               <DialogFooter>
                 <Button variant="ghost" onClick={() => setSupplierModal(false)}>Cancel</Button>
-                <Button onClick={saveSupplier} disabled={!form.name}>{editingSupplierId ? 'Save Changes' : 'Create Supplier'}</Button>
+                <Button onClick={saveSupplier} disabled={!form.name || !form.supplier_type}>{editingSupplierId ? 'Save Changes' : 'Create Supplier'}</Button>
               </DialogFooter>
             </>
           )}

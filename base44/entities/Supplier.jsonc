@@ -9,6 +9,15 @@
       "type": "string",
       "description": "Supplier SID used as {{sid}} token"
     },
+    "supplier_type": {
+      "type": "string",
+      "enum": [
+        "Internal",
+        "External",
+        "Calls"
+      ],
+      "description": "Supplier type used for ApiConnector filter matching"
+    },
     "payout_type": {
       "type": "string",
       "enum": [
@@ -33,6 +42,7 @@
     }
   },
   "required": [
-    "name"
+    "name",
+    "supplier_type"
   ]
 }

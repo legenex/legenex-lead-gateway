@@ -81,9 +81,22 @@
         "Processing",
         "Sold",
         "Unsold",
+        "Queued",
         "Error"
       ],
       "default": "Processing"
+    },
+    "queue_reason": {
+      "type": "string",
+      "description": "Reason the lead was queued for manual handling"
+    },
+    "trustedform_valid": {
+      "type": "boolean",
+      "description": "Whether the TrustedForm cert URL passed validation"
+    },
+    "capi_log": {
+      "type": "string",
+      "description": "JSON list of {connector, event_name, pixel, http_status, fbtrace_id}"
     },
     "error_stage": {
       "type": "string",

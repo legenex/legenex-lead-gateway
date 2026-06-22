@@ -13,7 +13,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { Download, Search } from 'lucide-react';
+import { Download, Search, Inbox } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { processLead } from '@/functions/processLead';
@@ -29,6 +29,7 @@ export default function Leads() {
   const [resubmitting, setResubmitting] = useState(false);
   const [progress, setProgress] = useState(null);
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
+  const [viewMode, setViewMode] = useState('all');
 
   const { data: leads = [], isLoading } = useQuery({
     queryKey: ['leads'],
@@ -53,6 +54,7 @@ export default function Leads() {
   const suppliers = [...new Set(leads.map(l => l.supplier_name).filter(Boolean))];
 
   const filtered = leads.filter(l => {
+    if (viewMode === 'queue' && l.final_status !== 'Queued') return false;
     if (statusFilter !== 'all' && l.final_status !== statusFilter) return false;
     if (supplierFilter !== 'all' && l.supplier_name !== supplierFilter) return false;
     if (search) {
@@ -166,10 +168,23 @@ export default function Leads() {
 
   return (
     <div>
-      <PageHeader title="Leads" subtitle="All processed leads with full trace data">
-        <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1.5">
-          <Download className="w-4 h-4" /> Export CSV
-        </Button>
+      <PageHeader title="Leads" subtitle={viewMode === 'queue' ? 'Queued leads for manual handling' : 'All processed leads with full trace data'}>
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-md border border-border overflow-hidden">
+            <button onClick={() => setViewMode('all')}
+              className={`px-3 py-1.5 text-[12px] font-medium transition-colors ${viewMode === 'all' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+              All Leads
+            </button>
+            <button onClick={() => setViewMode('queue')}
+              className={`px-3 py-1.5 text-[12px] font-medium transition-colors flex items-center gap-1.5 ${viewMode === 'queue' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+              <Inbox className="w-3.5 h-3.5" />
+              Queue
+            </button>
+          </div>
+          <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1.5">
+            <Download className="w-4 h-4" /> Export CSV
+          </Button>
+        </div>
       </PageHeader>
 
       {/* Filters */}
@@ -191,6 +206,7 @@ export default function Leads() {
             { value: 'all', label: 'All Status' },
             { value: 'Sold', label: 'Sold' },
             { value: 'Unsold', label: 'Unsold' },
+            { value: 'Queued', label: 'Queued' },
             { value: 'Error', label: 'Error' },
             { value: 'Processing', label: 'Processing' },
           ]}

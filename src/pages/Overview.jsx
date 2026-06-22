@@ -7,11 +7,11 @@ import StatCard from '@/components/overview/StatCard';
 import HealthStrip from '@/components/overview/HealthStrip';
 import StatusPill from '@/components/shared/StatusPill';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Percent, AlertTriangle, Clock, Copy } from 'lucide-react';
+import { Percent, AlertTriangle, Clock, Copy, Inbox, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, subDays, startOfDay, startOfWeek, startOfMonth, isAfter } from 'date-fns';
 
-const PIE_COLORS = ['#22C55E', '#F59E0B', '#EF4444'];
+const PIE_COLORS = ['#22C55E', '#F59E0B', '#EF4444', '#A855F7'];
 
 export default function Overview() {
   const qc = useQueryClient();
@@ -75,6 +75,13 @@ export default function Overview() {
   const soldRate = leads.length > 0 ? Math.round((soldLeads.length / leads.length) * 100) : 0;
 
   const errorsToday = errors.filter(e => isAfter(new Date(e.created_date), todayStart));
+  const queuedLeads = leads.filter(l => l.final_status === 'Queued');
+
+  // CAPI fires today: count capi_log entries from leads created today
+  const capiFiresToday = leadsToday.reduce((count, l) => {
+    if (!l.capi_log) return count;
+    try { return count + JSON.parse(l.capi_log).length; } catch { return count; }
+  }, 0);
 
   const avgProcessTime = leads.filter(l => l.process_time_ms).length > 0
     ? Math.round(leads.filter(l => l.process_time_ms).reduce((s, l) => s + l.process_time_ms, 0) / leads.filter(l => l.process_time_ms).length)
@@ -85,6 +92,7 @@ export default function Overview() {
     { name: 'Sold', value: leads.filter(l => l.final_status === 'Sold').length },
     { name: 'Unsold', value: leads.filter(l => l.final_status === 'Unsold').length },
     { name: 'Error', value: leads.filter(l => l.final_status === 'Error').length },
+    { name: 'Queued', value: leads.filter(l => l.final_status === 'Queued').length },
   ].filter(d => d.value > 0);
 
   // 14-day chart
@@ -103,6 +111,7 @@ export default function Overview() {
       Sold: dayLeads.filter(l => l.final_status === 'Sold').length,
       Unsold: dayLeads.filter(l => l.final_status === 'Unsold').length,
       Error: dayLeads.filter(l => l.final_status === 'Error').length,
+      Queued: dayLeads.filter(l => l.final_status === 'Queued').length,
     });
   }
 
@@ -139,10 +148,11 @@ export default function Overview() {
       </div>
 
       {/* Stats Row */}
-      <div className="grid grid-cols-3 gap-4 mt-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
         <StatCard label="Sold Rate" value={`${soldRate}%`} icon={Percent} />
         <StatCard label="Errors Today" value={errorsToday.length} icon={AlertTriangle} />
-        <StatCard label="Avg Process Time" value={`${avgProcessTime}ms`} icon={Clock} />
+        <StatCard label="Queued" value={queuedLeads.length} icon={Inbox} />
+        <StatCard label="CAPI Fires Today" value={capiFiresToday} icon={Zap} />
       </div>
 
       {/* Charts */}
@@ -159,6 +169,7 @@ export default function Overview() {
               />
               <Bar dataKey="Sold" stackId="a" fill="#22C55E" radius={[0, 0, 0, 0]} />
               <Bar dataKey="Unsold" stackId="a" fill="#F59E0B" />
+              <Bar dataKey="Queued" stackId="a" fill="#A855F7" />
               <Bar dataKey="Error" stackId="a" fill="#EF4444" radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -204,7 +215,7 @@ export default function Overview() {
               <table className="w-full text-[13px]">
                 <thead>
                   <tr className="border-b border-border bg-muted/50">
-                    {['Supplier', 'Total', 'Sold', 'Unsold', 'Error', 'Sold Rate', 'Avg Time'].map(h => (
+                    {['Supplier', 'Total', 'Sold', 'Unsold', 'Queued', 'Error', 'Sold Rate', 'Avg Time'].map(h => (
                       <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{h}</th>
                     ))}
                   </tr>
@@ -214,6 +225,7 @@ export default function Overview() {
                     const sl = leads.filter(l => l.supplier_name === name);
                     const sold = sl.filter(l => l.final_status === 'Sold').length;
                     const unsold = sl.filter(l => l.final_status === 'Unsold').length;
+                    const queued = sl.filter(l => l.final_status === 'Queued').length;
                     const err = sl.filter(l => l.final_status === 'Error').length;
                     const rate = sl.length > 0 ? Math.round((sold / sl.length) * 100) : 0;
                     const withTime = sl.filter(l => l.process_time_ms);
@@ -224,6 +236,7 @@ export default function Overview() {
                         <td className="px-4 py-3 font-mono text-[12px]">{sl.length}</td>
                         <td className="px-4 py-3 font-mono text-[12px] status-sold">{sold}</td>
                         <td className="px-4 py-3 font-mono text-[12px] status-unsold">{unsold}</td>
+                        <td className="px-4 py-3 font-mono text-[12px] status-queued">{queued}</td>
                         <td className="px-4 py-3 font-mono text-[12px] status-error">{err}</td>
                         <td className="px-4 py-3 font-mono text-[12px]">{rate}%</td>
                         <td className="px-4 py-3 font-mono text-[11px] text-muted-foreground">{avgT ? `${avgT}ms` : '—'}</td>

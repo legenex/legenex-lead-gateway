@@ -101,6 +101,8 @@
 .bg-status-unsold { background-color: rgba(245, 158, 11, 0.15); }
 .bg-status-error { background-color: rgba(239, 68, 68, 0.15); }
 .bg-status-processing { background-color: rgba(59, 130, 246, 0.15); }
+.status-queued { color: #A855F7; }
+.bg-status-queued { background-color: rgba(168, 85, 247, 0.15); }
 
 /* Scrollbar styling */
 ::-webkit-scrollbar { width: 6px; height: 6px; }

@@ -11,7 +11,11 @@
         "errors_same_stage",
         "hlr_unreachable",
         "leadbyte_non_success",
-        "sold_rate_below"
+        "sold_rate_below",
+        "api_error",
+        "capi_failure",
+        "lead_queued",
+        "missing_fields"
       ]
     },
     "threshold_count": {

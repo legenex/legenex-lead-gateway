@@ -5,6 +5,7 @@ const statusStyles = {
   Unsold: 'bg-status-unsold status-unsold',
   Error: 'bg-status-error status-error',
   Processing: 'bg-status-processing status-processing',
+  Queued: 'bg-status-queued status-queued',
 };
 
 export default function StatusPill({ status, size = 'sm' }) {
