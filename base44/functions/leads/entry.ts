@@ -90,6 +90,47 @@ function buildPayloadFromTemplate(template, enrichedData) {
   try { return JSON.parse(result); } catch { return result; }
 }
 
+// ── TrustedForm validation ────────────────────────────────────────────────
+const TRUSTEDFORM_RE = /^https?:\/\/cert\.trustedform\.com\/[0-9a-fA-F]{40}(\?.*)?$/;
+
+function isValidTrustedForm(url) {
+  if (!url || typeof url !== 'string') return false;
+  return TRUSTEDFORM_RE.test(url.trim());
+}
+
+// Resolve a dot-path like "records[0].status" against an object
+function resolvePath(obj, path) {
+  if (!obj || !path) return undefined;
+  const parts = path.replace(/\[(\d+)\]/g, '.$1').split('.');
+  let cur = obj;
+  for (const p of parts) {
+    if (cur == null) return undefined;
+    cur = cur[p];
+  }
+  return cur;
+}
+
+// Check if a ResponseMapping rule matches the LeadByte response object
+function matchRule(rule, lbObj) {
+  if (rule.is_fallback) return true;
+  const fieldVal = String(resolvePath(lbObj, rule.field_path || 'records[0].status') ?? '');
+  const ruleVal = rule.lb_status || '';
+  const op = rule.operator || 'contains';
+  const fv = fieldVal.toLowerCase();
+  const rv = ruleVal.toLowerCase();
+  switch (op) {
+    case 'equals': return fv === rv;
+    case 'not_equals': return fv !== rv;
+    case 'contains': return fv.includes(rv);
+    case 'not_contains': return !fv.includes(rv);
+    case 'starts_with': return fv.startsWith(rv);
+    case 'ends_with': return fv.endsWith(rv);
+    case 'is_empty': return fieldVal === '' || fieldVal === 'undefined';
+    case 'is_not_empty': return fieldVal !== '' && fieldVal !== 'undefined';
+    default: return fv === rv;
+  }
+}
+
 Deno.serve(async (req) => {
   // createClientFromRequest gives us .asServiceRole for all DB ops — no user session needed
   const base44 = createClientFromRequest(req);
@@ -297,6 +338,34 @@ Deno.serve(async (req) => {
       enrichedData.country_code = hlrResult.country_code || '';
     }
 
+    // 6.5. GATE: TrustedForm cert (hard enforce before LeadByte)
+    const requireCert = appSettings.require_trustedform_cert !== false;
+    const tfUrl = leadPayload.trustedform_url || leadPayload.trustedform_cert || '';
+    const tfValid = isValidTrustedForm(tfUrl);
+
+    if (requireCert && !tfValid) {
+      const queueReason = 'Missing or invalid TrustedForm cert';
+      // Resolve queued response via ResponseMapping (match against empty LB result)
+      const tfRules = await db.entities.ResponseMapping.list('sort_order', 50);
+      const tfNonFallbacks = tfRules.filter(r => !r.is_fallback).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+      const tfFallback = tfRules.find(r => r.is_fallback);
+      const tfMatched = tfNonFallbacks.find(r => matchRule(r, {})) || tfFallback;
+      const queueResponse = tfMatched ? { Response: tfMatched.response_label } : { Response: 'Queued' };
+
+      await db.entities.Lead.update(leadId, {
+        final_status: 'Queued',
+        queue_reason: queueReason,
+        trustedform_valid: false,
+        processed_at: new Date().toISOString(),
+        process_time_ms: Date.now() - startTime,
+        response_returned: JSON.stringify(queueResponse),
+      });
+      return Response.json(queueResponse, { status: 200 });
+    }
+
+    // Always persist trustedform_valid so it is never null
+    await db.entities.Lead.update(leadId, { trustedform_valid: tfValid });
+
     // 7. CHECK LEADBYTE CONNECTOR
     if (!leadByteConnector) {
       const resp = { Response: 'Error', message: 'No active LeadByte connector configured' };
@@ -392,39 +461,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 9. OPERATOR-BASED RESPONSE MAPPING
-    // Resolve a dot-path like "records[0].status" against the LB response object
-    function resolvePath(obj, path) {
-      if (!obj || !path) return undefined;
-      const parts = path.replace(/\[(\d+)\]/g, '.$1').split('.');
-      let cur = obj;
-      for (const p of parts) {
-        if (cur == null) return undefined;
-        cur = cur[p];
-      }
-      return cur;
-    }
-
-    function matchRule(rule, lbObj) {
-      if (rule.is_fallback) return true;
-      const fieldVal = String(resolvePath(lbObj, rule.field_path || 'records[0].status') ?? '');
-      const ruleVal = rule.lb_status || '';
-      const op = rule.operator || 'contains';
-      const fv = fieldVal.toLowerCase();
-      const rv = ruleVal.toLowerCase();
-      switch (op) {
-        case 'equals': return fv === rv;
-        case 'not_equals': return fv !== rv;
-        case 'contains': return fv.includes(rv);
-        case 'not_contains': return !fv.includes(rv);
-        case 'starts_with': return fv.startsWith(rv);
-        case 'ends_with': return fv.endsWith(rv);
-        case 'is_empty': return fieldVal === '' || fieldVal === 'undefined';
-        case 'is_not_empty': return fieldVal !== '' && fieldVal !== 'undefined';
-        default: return fv === rv;
-      }
-    }
-
+    // 9. OPERATOR-BASED RESPONSE MAPPING (resolvePath + matchRule at module scope)
     const responseMappings = await db.entities.ResponseMapping.list('sort_order', 50);
     const nonFallbacks = responseMappings.filter(r => !r.is_fallback).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
     const fallback = responseMappings.find(r => r.is_fallback);
