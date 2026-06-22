@@ -90,6 +90,26 @@ function buildPayloadFromTemplate(template, enrichedData) {
   try { return JSON.parse(result); } catch { return result; }
 }
 
+// Atomically increment the lead_id counter and return the next unique value.
+async function nextLeadId(db) {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const counters = await db.entities.Counter.filter({ name: 'lead_id' });
+    let counter = counters[0];
+    if (!counter) {
+      try {
+        counter = await db.entities.Counter.create({ name: 'lead_id', value: 0, updated_at: new Date().toISOString() });
+      } catch { continue; }
+    }
+    const nextValue = (counter.value || 0) + 1;
+    const result = await db.entities.Counter.updateMany(
+      { name: 'lead_id', value: counter.value },
+      { $set: { value: nextValue, updated_at: new Date().toISOString() } }
+    );
+    if (result.updated > 0) return nextValue;
+  }
+  throw new Error('Failed to acquire lead_id after retries');
+}
+
 // ── TrustedForm validation ────────────────────────────────────────────────
 const TRUSTEDFORM_RE = /^https?:\/\/cert\.trustedform\.com\/[0-9a-fA-F]{40}(\?.*)?$/;
 
@@ -228,6 +248,11 @@ Deno.serve(async (req) => {
       final_status: 'Processing',
     });
     leadId = lead.id;
+
+    // Assign unique numeric lead_id
+    const systemLeadId = await nextLeadId(db);
+    leadPayload.lead_id = systemLeadId;
+    await db.entities.Lead.update(leadId, { lead_id: systemLeadId });
 
     // Load config in parallel
     const [hlrSettingsArr, connectors, calcs] = await Promise.all([

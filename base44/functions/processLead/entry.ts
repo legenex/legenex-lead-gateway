@@ -83,6 +83,28 @@ async function sha256Hex(message) {
   return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+// Atomically increment the lead_id counter and return the next unique value.
+// Uses optimistic locking: read current value, conditional-write next value,
+// retry if another request changed it first.
+async function nextLeadId(db) {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const counters = await db.entities.Counter.filter({ name: 'lead_id' });
+    let counter = counters[0];
+    if (!counter) {
+      try {
+        counter = await db.entities.Counter.create({ name: 'lead_id', value: 0, updated_at: new Date().toISOString() });
+      } catch { continue; }
+    }
+    const nextValue = (counter.value || 0) + 1;
+    const result = await db.entities.Counter.updateMany(
+      { name: 'lead_id', value: counter.value },
+      { $set: { value: nextValue, updated_at: new Date().toISOString() } }
+    );
+    if (result.updated > 0) return nextValue;
+  }
+  throw new Error('Failed to acquire lead_id after retries');
+}
+
 function normalizeStr(s) { return String(s || '').trim().toLowerCase(); }
 
 function normalizePhone(phone) {
@@ -123,6 +145,7 @@ async function buildCapiUserData(d) {
   if (d.fbp) ud.fbp = d.fbp;
   if (d.external_id_hash) ud.external_id = d.external_id_hash;
   else if (d.external_id) ud.external_id = await sha256Hex(normalizeStr(d.external_id));
+  else if (d.lead_id != null) ud.external_id = await sha256Hex(String(d.lead_id));
   return ud;
 }
 
@@ -186,7 +209,9 @@ async function sendCapiEvent(conn, leadData, leadId, eventName) {
 
 // Send a webhook/generic_http event.
 async function sendHttpEvent(conn, leadData, leadId) {
-  const payload = buildPayloadFromTemplate(conn.payload_template, { ...leadData, lead_id: leadId });
+  const ctx = { ...leadData };
+  if (ctx.lead_id == null) ctx.lead_id = leadId;
+  const payload = buildPayloadFromTemplate(conn.payload_template, ctx);
   const headerRows = parseJsonArray(conn.headers);
   const hdrs = {};
   for (const r of headerRows) { if (r.key) hdrs[r.key] = r.value; }
@@ -490,6 +515,11 @@ Deno.serve(async (req) => {
       final_status: 'Processing',
     });
     leadId = lead.id;
+
+    // Assign unique numeric lead_id before any CAPI event or response
+    const systemLeadId = await nextLeadId(db);
+    leadPayload.lead_id = systemLeadId;
+    await db.entities.Lead.update(leadId, { lead_id: systemLeadId });
 
     // Load all config in parallel
     const [hlrSettingsArr, connectors, calcs, customFields, apiConnectors, responseMappings] = await Promise.all([
