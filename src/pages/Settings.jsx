@@ -12,13 +12,13 @@ import SettingsUsers from '@/components/settings/SettingsUsers';
 export default function Settings() {
   return (
     <div>
-      <PageHeader title="Settings" subtitle="Suppliers, API keys, field mapping, APIs, and user management" />
+      <PageHeader title="Settings" subtitle="Suppliers, API keys, field mapping, deliveries, and user management" />
       <Tabs defaultValue="suppliers">
         <TabsList className="bg-muted mb-4">
           <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
           <TabsTrigger value="apikeys">API Keys</TabsTrigger>
           <TabsTrigger value="fields">Custom Fields</TabsTrigger>
-          <TabsTrigger value="apis">APIs</TabsTrigger>
+          <TabsTrigger value="apis">Deliveries</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
         </TabsList>
         <TabsContent value="suppliers"><SettingsSuppliers /></TabsContent>
@@ -31,7 +31,7 @@ export default function Settings() {
               <SettingsLeadByte />
             </div>
             <div>
-              <div className="text-[14px] font-semibold text-foreground mb-3">Event APIs</div>
+              <div className="text-[14px] font-semibold text-foreground mb-3">Conversion Events</div>
               <SettingsApiConnectors />
             </div>
             <div>
