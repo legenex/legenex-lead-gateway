@@ -8,7 +8,7 @@ async function sha256Hex(message) {
 
 const DEFAULT_CAPI_TEMPLATE = JSON.stringify({
   data: [{
-    event_name: "Lead",
+    event_name: "{{lead_event}}",
     event_time: "{{event_time}}",
     action_source: "website",
     event_id: "{{event_id}}",
@@ -122,6 +122,8 @@ function resolveTokenValue(token, d, leadId) {
       return d.last_name || d.lastname || '';
     case 'zip':
       return d.zip || d.zipcode || '';
+    case 'lead_event':
+      return d.lead_event || '';
     default:
       const val = d[token];
       return val !== undefined && val !== null ? String(val) : '';
@@ -228,7 +230,7 @@ Deno.serve(async (req) => {
   if (!conn) return Response.json({ error: 'Connector not found' }, { status: 404 });
   if (conn.kind !== 'facebook_capi') return Response.json({ error: 'Connector is not a Facebook CAPI type' }, { status: 400 });
 
-  const eventName = event_name || conn.lead_event_name || 'Lead';
+  const eventName = event_name || conn.received_event_name || conn.lead_event_name || 'Lead';
   const apiVer = conn.fb_api_version || 'v21.0';
   const pixel = conn.fb_pixel_id;
   const token = conn.fb_access_token;
@@ -250,7 +252,8 @@ Deno.serve(async (req) => {
 
   let requestBody;
   try {
-    const resolved = await resolveTemplate(templateStr, DEFAULT_TEST_LEAD_DATA, 'test-lead-id');
+    const ctx = { ...DEFAULT_TEST_LEAD_DATA, lead_event: eventName };
+    const resolved = await resolveTemplate(templateStr, ctx, 'test-lead-id');
     requestBody = JSON.parse(resolved);
   } catch (err) {
     return Response.json({ error: `Template resolution failed: ${err.message}` }, { status: 500 });

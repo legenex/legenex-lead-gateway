@@ -18,11 +18,11 @@ import { Plus, Save, Trash2, Play, Loader2, Eye, EyeOff, Zap, Globe } from 'luci
 import { toast } from 'sonner';
 
 const TRIGGER_OPTIONS = [
-  { value: 'on_received', label: 'On Received' },
-  { value: 'on_sold', label: 'On Sold' },
-  { value: 'on_unsold', label: 'On Unsold' },
-  { value: 'on_dq', label: 'On DQ' },
-  { value: 'on_queued', label: 'On Queued' },
+  { value: 'on_received', label: 'Received' },
+  { value: 'on_sold', label: 'Sold' },
+  { value: 'on_unsold', label: 'Unsold' },
+  { value: 'on_dq', label: 'Disqualified' },
+  { value: 'on_queued', label: 'Queued' },
 ];
 
 const KIND_OPTIONS = [
@@ -53,7 +53,7 @@ const DEFAULT_TEST_PAYLOAD = {
 
 const DEFAULT_CAPI_TEMPLATE = JSON.stringify({
   data: [{
-    event_name: "Lead",
+    event_name: "{{lead_event}}",
     event_time: "{{event_time}}",
     action_source: "website",
     event_id: "{{event_id}}",
@@ -125,7 +125,8 @@ export default function SettingsApiConnectors() {
       name: '', kind: 'facebook_capi', enabled: true, sort_order: 0,
       filter_brands: '[]', filter_suppliers: '[]', filter_supplier_types: '[]',
       fb_pixel_id: '', fb_access_token: '', fb_test_event_code: '', fb_api_version: 'v21.0',
-      lead_event_name: 'Lead', sold_event_name: 'SubmittedApplication', action_source: 'website',
+      received_event_name: '', sold_event_name: '', unsold_event_name: '', queued_event_name: '', dq_event_name: '',
+      action_source: 'website',
       auto_hash_capi: true,
       target_url: '', http_method: 'POST', content_type: 'application/json',
       headers: '[]', payload_template: DEFAULT_CAPI_TEMPLATE, triggers: '["on_received"]',
@@ -137,7 +138,12 @@ export default function SettingsApiConnectors() {
   };
 
   const openEdit = (conn) => {
-    setEditing({ ...conn });
+    // Migrate legacy lead_event_name → received_event_name
+    const migrated = { ...conn };
+    if (!migrated.received_event_name && migrated.lead_event_name) {
+      migrated.received_event_name = migrated.lead_event_name;
+    }
+    setEditing(migrated);
     setHeaderRows(parseJsonArray(conn.headers));
     setShowToken(false);
     setTestResult(null);
@@ -315,6 +321,21 @@ export default function SettingsApiConnectors() {
           </CardContent>
         </Card>
 
+        {/* Per-Trigger Event Names — visible for all connector kinds */}
+        <Card className="bg-card border-border">
+          <CardContent className="p-4 space-y-3">
+            <div className="text-[13px] font-semibold text-foreground">Event Names</div>
+            <p className="text-[11px] text-muted-foreground">Event name fired per trigger. Received/Unsold/Queued default to "Lead" if blank. Sold and Disqualified have no default — if blank, that event does not fire. Use <code className="bg-muted px-1 rounded text-primary">{'{{lead_event}}'}</code> in the payload template to inject the firing event name dynamically.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div><Label className="text-[12px]">Received Event Name</Label><Input value={editing.received_event_name || ''} onChange={e => setF('received_event_name', e.target.value)} placeholder="Lead" className="mt-1 bg-background font-mono text-[12px]" /></div>
+              <div><Label className="text-[12px]">Sold Event Name</Label><Input value={editing.sold_event_name || ''} onChange={e => setF('sold_event_name', e.target.value)} placeholder="SubmittedApplication / Sold_Lead / Qualified_Lead / CompleteRegistration" className="mt-1 bg-background font-mono text-[12px]" /></div>
+              <div><Label className="text-[12px]">Unsold Event Name</Label><Input value={editing.unsold_event_name || ''} onChange={e => setF('unsold_event_name', e.target.value)} placeholder="Lead" className="mt-1 bg-background font-mono text-[12px]" /></div>
+              <div><Label className="text-[12px]">Queued Event Name</Label><Input value={editing.queued_event_name || ''} onChange={e => setF('queued_event_name', e.target.value)} placeholder="Lead" className="mt-1 bg-background font-mono text-[12px]" /></div>
+              <div><Label className="text-[12px]">Disqualified Event Name</Label><Input value={editing.dq_event_name || ''} onChange={e => setF('dq_event_name', e.target.value)} placeholder="DQLead / DQ_Lead" className="mt-1 bg-background font-mono text-[12px]" /></div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Facebook CAPI fields */}
         {isCapi && (
           <Card className="bg-card border-border">
@@ -339,11 +360,7 @@ export default function SettingsApiConnectors() {
                 <div><Label className="text-[12px]">Test Event Code (optional)</Label><Input value={editing.fb_test_event_code || ''} onChange={e => setF('fb_test_event_code', e.target.value)} className="mt-1 bg-background font-mono text-[12px]" /></div>
                 <div><Label className="text-[12px]">API Version</Label><Input value={editing.fb_api_version || 'v21.0'} onChange={e => setF('fb_api_version', e.target.value)} className="mt-1 bg-background font-mono text-[12px]" /></div>
               </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div><Label className="text-[12px]">Lead Event Name</Label><Input value={editing.lead_event_name || 'Lead'} onChange={e => setF('lead_event_name', e.target.value)} className="mt-1 bg-background" /></div>
-                <div><Label className="text-[12px]">Sold Event Name</Label><Input value={editing.sold_event_name || 'SubmittedApplication'} onChange={e => setF('sold_event_name', e.target.value)} className="mt-1 bg-background" /></div>
-                <div><Label className="text-[12px]">Action Source</Label><Input value={editing.action_source || 'website'} onChange={e => setF('action_source', e.target.value)} className="mt-1 bg-background" /></div>
-              </div>
+              <div><Label className="text-[12px]">Action Source</Label><Input value={editing.action_source || 'website'} onChange={e => setF('action_source', e.target.value)} className="mt-1 bg-background" /></div>
               <div className="flex items-center gap-2 pt-1 border-t border-border">
                 <Switch checked={editing.auto_hash_capi !== false} onCheckedChange={v => setF('auto_hash_capi', v)} />
                 <Label className="text-[12px]">Auto Hash Facebook CAPI Fields</Label>

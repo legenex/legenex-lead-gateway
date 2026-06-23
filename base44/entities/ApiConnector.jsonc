@@ -50,11 +50,29 @@
     },
     "lead_event_name": {
       "type": "string",
-      "default": "Lead"
+      "default": "Lead",
+      "description": "Legacy field \u2014 migrated to received_event_name"
+    },
+    "received_event_name": {
+      "type": "string",
+      "description": "Event name fired on the Received trigger. Falls back to 'Lead' if blank."
     },
     "sold_event_name": {
       "type": "string",
-      "default": "SubmittedApplication"
+      "default": "SubmittedApplication",
+      "description": "Event name fired on the Sold trigger. No fallback \u2014 if blank, the Sold event does not fire."
+    },
+    "unsold_event_name": {
+      "type": "string",
+      "description": "Event name fired on the Unsold trigger. Falls back to 'Lead' if blank."
+    },
+    "queued_event_name": {
+      "type": "string",
+      "description": "Event name fired on the Queued trigger. Falls back to 'Lead' if blank."
+    },
+    "dq_event_name": {
+      "type": "string",
+      "description": "Event name fired on the Disqualified trigger. No fallback \u2014 if blank, the DQ event does not fire."
     },
     "action_source": {
       "type": "string",

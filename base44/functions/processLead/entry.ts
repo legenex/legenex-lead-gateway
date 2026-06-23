@@ -149,7 +149,7 @@ async function buildCapiUserData(d) {
 // Auto-hash (auto_hash_capi=true) handles SHA-256 of user_data fields automatically.
 const DEFAULT_CAPI_TEMPLATE = JSON.stringify({
   data: [{
-    event_name: "Lead",
+    event_name: "{{lead_event}}",
     event_time: "{{event_time}}",
     action_source: "website",
     event_id: "{{event_id}}",
@@ -247,6 +247,8 @@ function resolveTokenValue(token, d, leadId) {
       return d.last_name || d.lastname || '';
     case 'zip':
       return d.zip || d.zipcode || '';
+    case 'lead_event':
+      return d.lead_event || '';
     default:
       const val = d[token];
       return val !== undefined && val !== null ? String(val) : '';
@@ -341,7 +343,8 @@ async function sendCapiEvent(conn, leadData, leadId, eventName) {
 
   let body;
   try {
-    const resolved = await resolveTemplate(templateStr, leadData, leadId);
+    const ctx = { ...leadData, lead_event: eventName };
+    const resolved = await resolveTemplate(templateStr, ctx, leadId);
     body = JSON.parse(resolved);
   } catch (err) {
     return {
@@ -383,9 +386,10 @@ async function sendCapiEvent(conn, leadData, leadId, eventName) {
 }
 
 // Send a webhook/generic_http event.
-async function sendHttpEvent(conn, leadData, leadId) {
+async function sendHttpEvent(conn, leadData, leadId, eventName) {
   const ctx = { ...leadData };
   if (ctx.lead_id == null) ctx.lead_id = leadId;
+  if (eventName) ctx.lead_event = eventName;
   const payload = await buildPayloadFromTemplate(conn.payload_template, ctx);
   const headerRows = parseJsonArray(conn.headers);
   const hdrs = {};
@@ -427,17 +431,37 @@ function connectorMatchesFilters(conn, leadData, supplierAttribution, supplierRe
   return true;
 }
 
+// Resolve the event name for a given trigger from the connector's per-trigger fields.
+// on_received: received_event_name || lead_event_name || 'Lead'
+// on_unsold: unsold_event_name || 'Lead'
+// on_queued: queued_event_name || 'Lead'
+// on_sold: sold_event_name (no fallback — blank means skip)
+// on_dq: dq_event_name (no fallback — blank means skip)
+function getTriggerEventName(conn, trigger) {
+  switch (trigger) {
+    case 'on_received': return conn.received_event_name || conn.lead_event_name || 'Lead';
+    case 'on_unsold': return conn.unsold_event_name || 'Lead';
+    case 'on_queued': return conn.queued_event_name || 'Lead';
+    case 'on_sold': return conn.sold_event_name || '';
+    case 'on_dq': return conn.dq_event_name || '';
+    default: return '';
+  }
+}
+
 // Fire all matching connectors for a given trigger. Fire-and-forget: returns
 // immediately, results handled in background.
-function fireConnectors(db, connectors, trigger, leadData, leadId, supplierAttribution, supplierRecord, capiEventNameMap) {
+function fireConnectors(db, connectors, trigger, leadData, leadId, supplierAttribution, supplierRecord) {
   for (const conn of connectors) {
     if (!conn.enabled) continue;
     const triggers = parseJsonArray(conn.triggers);
     if (!triggers.includes(trigger)) continue;
     if (!connectorMatchesFilters(conn, leadData, supplierAttribution, supplierRecord)) continue;
 
+    const eventName = getTriggerEventName(conn, trigger);
+    // Sold and DQ have no fallback — skip if blank
+    if (!eventName && (trigger === 'on_sold' || trigger === 'on_dq')) continue;
+
     if (conn.kind === 'facebook_capi') {
-      const eventName = capiEventNameMap[trigger] || 'Lead';
       sendCapiEvent(conn, leadData, leadId, eventName)
         .then(async (result) => {
           await appendCapiLog(db, leadId, result);
@@ -461,7 +485,7 @@ function fireConnectors(db, connectors, trigger, leadData, leadId, supplierAttri
         });
     } else {
       // webhook or generic_http
-      sendHttpEvent(conn, leadData, leadId)
+      sendHttpEvent(conn, leadData, leadId, eventName)
         .then(async (result) => {
           if (!result.success) {
             await db.entities.ErrorLog.create({
@@ -802,59 +826,7 @@ Deno.serve(async (req) => {
     }
 
     // ── b. FIRE ON RECEIVED (fire-and-forget) ────────────────────────────
-    const capiEventNameMap = { on_received: 'Lead', on_sold: 'SubmittedApplication', on_unsold: 'Lead', on_dq: 'Lead', on_queued: 'Lead' };
-    // Override with connector-specific event names for CAPI
-    const onReceivedConnectors = apiConnectors.filter(c => {
-      const t = parseJsonArray(c.triggers);
-      return t.includes('on_received');
-    });
-    for (const conn of onReceivedConnectors) {
-      if (!connectorMatchesFilters(conn, leadPayload, supplierAttribution, supplierRecord)) continue;
-      if (conn.kind === 'facebook_capi') {
-        const eventName = conn.lead_event_name || 'Lead';
-        sendCapiEvent(conn, leadPayload, leadId, eventName)
-          .then(async (result) => {
-            await appendCapiLog(db, leadId, result);
-            if (!result.success) {
-              await db.entities.ErrorLog.create({
-                lead_id: leadId, stage: 'leadbyte', severity: 'warning',
-                message: `CAPI on_received failure: ${conn.name} (${eventName})`,
-                detail: JSON.stringify(result), supplier_name: supplierAttribution,
-              }).catch(() => {});
-              await evaluateNotifications(db, ['capi_failure', 'api_error'], { id: leadId }, supplierAttribution,
-                { message: `CAPI on_received failure: ${conn.name} - ${result.error || result.http_status}` }).catch(() => {});
-            }
-          })
-          .catch(async (err) => {
-            await appendCapiLog(db, leadId, { connector: conn.name, event_name: conn.lead_event_name || 'Lead', pixel: conn.fb_pixel_id, http_status: null, fbtrace_id: '', success: false, error: err.message });
-            await db.entities.ErrorLog.create({
-              lead_id: leadId, stage: 'leadbyte', severity: 'warning',
-              message: `CAPI on_received error: ${conn.name}`,
-              detail: JSON.stringify({ error: err.message }), supplier_name: supplierAttribution,
-            }).catch(() => {});
-          });
-      } else {
-        sendHttpEvent(conn, leadPayload, leadId)
-          .then(async (result) => {
-            if (!result.success) {
-              await db.entities.ErrorLog.create({
-                lead_id: leadId, stage: 'leadbyte', severity: 'warning',
-                message: `API on_received error: ${conn.name}`,
-                detail: JSON.stringify(result), supplier_name: supplierAttribution,
-              }).catch(() => {});
-              await evaluateNotifications(db, ['api_error'], { id: leadId }, supplierAttribution,
-                { message: `API on_received error: ${conn.name} - ${result.error || result.http_status}` }).catch(() => {});
-            }
-          })
-          .catch(async (err) => {
-            await db.entities.ErrorLog.create({
-              lead_id: leadId, stage: 'leadbyte', severity: 'warning',
-              message: `API on_received error: ${conn.name}`,
-              detail: JSON.stringify({ error: err.message }), supplier_name: supplierAttribution,
-            }).catch(() => {});
-          });
-      }
-    }
+    fireConnectors(db, apiConnectors, 'on_received', leadPayload, leadId, supplierAttribution, supplierRecord);
 
     // ── c. HLR LOOKUP ────────────────────────────────────────────────────
     let hlrResult = null;
@@ -933,7 +905,7 @@ Deno.serve(async (req) => {
     if (requireCert && !tfValid) {
       const queueReason = 'Missing or invalid TrustedForm cert';
 
-      fireConnectors(db, apiConnectors, 'on_queued', leadPayload, leadId, supplierAttribution, supplierRecord, capiEventNameMap);
+      fireConnectors(db, apiConnectors, 'on_queued', leadPayload, leadId, supplierAttribution, supplierRecord);
       await evaluateNotifications(db, ['lead_queued'], { id: leadId, queue_reason: queueReason }, supplierAttribution, { queue_reason: queueReason });
 
       const mapped = await resolveResponseMapping(db, {}, { Response: 'Queued' }, 'Queued');
@@ -952,7 +924,7 @@ Deno.serve(async (req) => {
     // ── d2. GATE: Required custom fields ─────────────────────────────────
     if (missingFields.length > 0) {
       const queueReason = `Missing required fields: ${missingFields.join(', ')}`;
-      fireConnectors(db, apiConnectors, 'on_queued', leadPayload, leadId, supplierAttribution, supplierRecord, capiEventNameMap);
+      fireConnectors(db, apiConnectors, 'on_queued', leadPayload, leadId, supplierAttribution, supplierRecord);
       await evaluateNotifications(db, ['lead_queued', 'missing_fields'], { id: leadId, queue_reason: queueReason }, supplierAttribution, { queue_reason: queueReason });
 
       const mapped = await resolveResponseMapping(db, {}, { Response: 'Queued' }, 'Queued');
@@ -1037,51 +1009,7 @@ Deno.serve(async (req) => {
         supplierResponse = { Response: 'Sold' };
 
         // Fire on_sold connectors (fire-and-forget)
-        const onSoldConnectors = apiConnectors.filter(c => parseJsonArray(c.triggers).includes('on_sold'));
-        for (const conn of onSoldConnectors) {
-          if (!connectorMatchesFilters(conn, leadPayload, supplierAttribution, supplierRecord)) continue;
-          if (conn.kind === 'facebook_capi') {
-            const eventName = conn.sold_event_name || 'SubmittedApplication';
-            sendCapiEvent(conn, leadPayload, leadId, eventName)
-              .then(async (result) => {
-                await appendCapiLog(db, leadId, result);
-                if (!result.success) {
-                  await db.entities.ErrorLog.create({
-                    lead_id: leadId, stage: 'leadbyte', severity: 'warning',
-                    message: `CAPI on_sold failure: ${conn.name} (${eventName})`,
-                    detail: JSON.stringify(result), supplier_name: supplierAttribution,
-                  }).catch(() => {});
-                  await evaluateNotifications(db, ['capi_failure', 'api_error'], { id: leadId }, supplierAttribution,
-                    { message: `CAPI on_sold failure: ${conn.name} - ${result.error || result.http_status}` }).catch(() => {});
-                }
-              })
-              .catch(async (err) => {
-                await db.entities.ErrorLog.create({
-                  lead_id: leadId, stage: 'leadbyte', severity: 'warning',
-                  message: `CAPI on_sold error: ${conn.name}`,
-                  detail: JSON.stringify({ error: err.message }), supplier_name: supplierAttribution,
-                }).catch(() => {});
-              });
-          } else {
-            sendHttpEvent(conn, leadPayload, leadId)
-              .then(async (result) => {
-                if (!result.success) {
-                  await db.entities.ErrorLog.create({
-                    lead_id: leadId, stage: 'leadbyte', severity: 'warning',
-                    message: `API on_sold error: ${conn.name}`,
-                    detail: JSON.stringify(result), supplier_name: supplierAttribution,
-                  }).catch(() => {});
-                }
-              })
-              .catch(async (err) => {
-                await db.entities.ErrorLog.create({
-                  lead_id: leadId, stage: 'leadbyte', severity: 'warning',
-                  message: `API on_sold error: ${conn.name}`,
-                  detail: JSON.stringify({ error: err.message }), supplier_name: supplierAttribution,
-                }).catch(() => {});
-              });
-          }
-        }
+        fireConnectors(db, apiConnectors, 'on_sold', leadPayload, leadId, supplierAttribution, supplierRecord);
       } else if (recordStatus === 'Rejected') {
         // ── f. Rejected => check for queueable patterns ─────────────────
         const rejectionReason = recordResponse.message || recordResponse.reason || recordResponse.error || record.error || record.response_message || '';
@@ -1091,14 +1019,14 @@ Deno.serve(async (req) => {
           await db.entities.Lead.update(leadId, { queue_reason: queueReason });
           supplierResponse = { Response: 'Unsold' };
           // Fire on_queued connectors + evaluate rules
-          fireConnectors(db, apiConnectors, 'on_queued', leadPayload, leadId, supplierAttribution, supplierRecord, capiEventNameMap);
+          fireConnectors(db, apiConnectors, 'on_queued', leadPayload, leadId, supplierAttribution, supplierRecord);
           await evaluateNotifications(db, ['lead_queued', 'missing_fields'], { id: leadId, queue_reason: queueReason }, supplierAttribution, { queue_reason: queueReason });
         } else {
           finalStatus = 'Unsold';
           supplierResponse = { Response: 'Unsold' };
           // Fire on_unsold + on_dq connectors
-          fireConnectors(db, apiConnectors, 'on_unsold', leadPayload, leadId, supplierAttribution, supplierRecord, capiEventNameMap);
-          fireConnectors(db, apiConnectors, 'on_dq', leadPayload, leadId, supplierAttribution, supplierRecord, capiEventNameMap);
+          fireConnectors(db, apiConnectors, 'on_unsold', leadPayload, leadId, supplierAttribution, supplierRecord);
+          fireConnectors(db, apiConnectors, 'on_dq', leadPayload, leadId, supplierAttribution, supplierRecord);
         }
       } else {
         finalStatus = 'Error';
@@ -1127,7 +1055,7 @@ Deno.serve(async (req) => {
         const queueReason = `LeadByte error (missing/invalid field): ${firstError || topStatus}`;
         await db.entities.Lead.update(leadId, { queue_reason: queueReason });
         supplierResponse = { Response: 'Unsold' };
-        fireConnectors(db, apiConnectors, 'on_queued', leadPayload, leadId, supplierAttribution, supplierRecord, capiEventNameMap);
+        fireConnectors(db, apiConnectors, 'on_queued', leadPayload, leadId, supplierAttribution, supplierRecord);
         await evaluateNotifications(db, ['lead_queued', 'missing_fields'], { id: leadId, queue_reason: queueReason }, supplierAttribution, { queue_reason: queueReason });
       } else {
         finalStatus = 'Error';
