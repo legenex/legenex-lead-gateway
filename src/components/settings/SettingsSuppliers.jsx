@@ -6,9 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { SearchableSelect } from '@/components/ui/searchable-select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Copy, RefreshCw, Eye, EyeOff } from 'lucide-react';
+import { Plus, Copy, RefreshCw, Eye, EyeOff, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 
@@ -189,6 +190,21 @@ export default function SettingsSuppliers() {
     toast.success('Endpoint copied');
   };
 
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    const k = getKeyForSupplier(deleteTarget.id);
+    if (k) {
+      await base44.entities.ApiKey.delete(k.id).catch(() => {});
+    }
+    await base44.entities.Supplier.delete(deleteTarget.id);
+    qc.invalidateQueries({ queryKey: ['suppliers'] });
+    qc.invalidateQueries({ queryKey: ['api-keys'] });
+    toast.success('Supplier deleted');
+    setDeleteTarget(null);
+  };
+
   const toggleActive = async (supplier) => {
     await base44.entities.Supplier.update(supplier.id, { active: !supplier.active });
     const k = getKeyForSupplier(supplier.id);
@@ -279,6 +295,7 @@ export default function SettingsSuppliers() {
                       <Button size="sm" variant="ghost" onClick={() => toggleActive(s)} className="h-7 text-[11px] px-2 text-muted-foreground">
                         {s.active ? 'Deactivate' : 'Activate'}
                       </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(s)} className="h-7 w-7 p-0 text-destructive hover:text-destructive" title="Delete Supplier"><Trash2 className="w-3 h-3" /></Button>
                     </div>
                   </td>
                 </tr>
@@ -287,6 +304,24 @@ export default function SettingsSuppliers() {
           </tbody>
         </table>
       </div>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(v) => { if (!v) setDeleteTarget(null); }}>
+        <AlertDialogContent className="bg-popover border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete supplier?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete "{deleteTarget?.name}" and its API key. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Supplier Modal */}
       <Dialog open={supplierModal} onOpenChange={(v) => { if (!v && !newKeyFull) setSupplierModal(false); }}>
