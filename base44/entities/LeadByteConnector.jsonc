@@ -5,6 +5,15 @@
     "api_name": {
       "type": "string"
     },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "leadbyte",
+        "generic_http"
+      ],
+      "default": "leadbyte",
+      "description": "LeadByte or Generic HTTP destination"
+    },
     "target_url": {
       "type": "string"
     },
@@ -67,7 +76,11 @@
     },
     "filter_conditions": {
       "type": "string",
-      "description": "JSON array of {field, operator, value} conditions evaluated against enriched lead data (including calculated fields). All must match for the connector to forward. Empty = no conditions. Operators: equals, not_equals, contains, not_contains, starts_with, ends_with, is_empty, is_not_empty, gt, lt"
+      "description": "JSON array of {field, operator, value} conditions evaluated against enriched lead data (including calculated fields). All must match for the destination to fire. Empty = no conditions. Operators: equals, not_equals, contains, not_contains, starts_with, ends_with, is_empty, is_not_empty, gt, lt"
+    },
+    "triggers": {
+      "type": "string",
+      "description": "JSON array of: on_received, on_sold, on_unsold, on_dq, on_queued"
     }
   },
   "required": [

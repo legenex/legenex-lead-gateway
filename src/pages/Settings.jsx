@@ -27,7 +27,7 @@ export default function Settings() {
         <TabsContent value="apis">
           <div className="space-y-8">
             <div>
-              <div className="text-[14px] font-semibold text-foreground mb-3">Lead Destination</div>
+              <div className="text-[14px] font-semibold text-foreground mb-3">Lead Destinations</div>
               <SettingsLeadByte />
             </div>
             <div>

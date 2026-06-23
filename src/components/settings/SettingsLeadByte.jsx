@@ -12,7 +12,8 @@ import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import JsonViewer from '@/components/shared/JsonViewer';
 import { testLeadByteConnector } from '@/functions/testLeadByteConnector';
-import { ActualPayloadEditor, buildDefaultActualPayload } from '@/components/settings/ActualPayloadEditor';
+import { buildDefaultActualPayload } from '@/components/settings/ActualPayloadEditor';
+import { HighlightedPayloadEditor } from '@/components/settings/HighlightedPayloadEditor';
 import TokenReferencePanel from '@/components/settings/TokenReferencePanel';
 import ConnectorFilterPanel from '@/components/settings/ConnectorFilterPanel';
 import { Plus, Save, Play, Loader2, Trash2, Copy, ChevronDown, ChevronRight } from 'lucide-react';
@@ -98,6 +99,25 @@ const FIELD_PATH_OPTIONS = [
   { value: 'lead_id', label: 'lead_id' },
 ];
 
+const TRIGGER_OPTIONS = [
+  { value: 'on_received', label: 'Received' },
+  { value: 'on_sold', label: 'Sold' },
+  { value: 'on_unsold', label: 'Unsold' },
+  { value: 'on_dq', label: 'Disqualified' },
+  { value: 'on_queued', label: 'Queued' },
+];
+
+const KIND_OPTIONS = [
+  { value: 'leadbyte', label: 'LeadByte' },
+  { value: 'generic_http', label: 'Generic HTTP' },
+];
+
+function parseJsonArray(val) {
+  if (!val) return [];
+  if (Array.isArray(val)) return val;
+  try { const p = JSON.parse(val); return Array.isArray(p) ? p : []; } catch { return []; }
+}
+
 function parseHeaderRows(val) {
   if (!val) return [{ key: 'Content-Type', value: 'application/json' }];
   if (typeof val === 'string') {
@@ -165,7 +185,7 @@ export default function SettingsLeadByte() {
     if (!payloadTemplate || mode === 'pass-through') {
       payloadTemplate = buildDefaultActualPayload(customFields);
     }
-    setEditing({ ...conn, forwarding_mode: 'template', payload_template: payloadTemplate });
+    setEditing({ ...conn, forwarding_mode: 'template', payload_template: payloadTemplate, kind: conn.kind || 'leadbyte', triggers: conn.triggers || '["on_received"]' });
     setHeaderRows(parseHeaderRows(conn.headers));
     setTestResult(null);
     setTestPayloadStr(conn.test_payload_last_used || JSON.stringify(DEFAULT_TEST_PAYLOAD, null, 2));
@@ -186,6 +206,7 @@ export default function SettingsLeadByte() {
       payload_template: buildDefaultActualPayload(customFields), enabled: true, is_default: false,
       forwarding_mode: 'template',
       filter_brands: '[]', filter_suppliers: '[]', filter_supplier_types: '[]', filter_conditions: '[]',
+      kind: 'leadbyte', triggers: '["on_received"]',
     });
     setHeaderRows([{ key: 'X_KEY', value: '' }, { key: 'Content-Type', value: 'application/json' }]);
     setTestResult(null);
@@ -232,6 +253,23 @@ export default function SettingsLeadByte() {
   const removeHeaderRow = (i) => setHeaderRows(p => p.filter((_, idx) => idx !== i));
   const updateHeaderRow = (i, field, val) => setHeaderRows(p => p.map((r, idx) => idx === i ? { ...r, [field]: val } : r));
   const setF = (key, val) => setEditing(p => ({ ...p, [key]: val }));
+
+  const toggleArrayValue = (field, value) => {
+    const arr = parseJsonArray(editing[field]);
+    const next = arr.includes(value) ? arr.filter(v => v !== value) : [...arr, value];
+    setF(field, JSON.stringify(next));
+  };
+
+  const toggleEnabled = async (conn) => {
+    await base44.entities.LeadByteConnector.update(conn.id, { enabled: !conn.enabled });
+    qc.invalidateQueries({ queryKey: ['lb-connectors-all'] });
+  };
+
+  const deleteConnector = async (id) => {
+    await base44.entities.LeadByteConnector.delete(id);
+    toast.success('Destination deleted');
+    qc.invalidateQueries({ queryKey: ['lb-connectors-all'] });
+  };
 
   const saveMapping = async () => {
     if (!editingMapping) return;
@@ -285,7 +323,7 @@ export default function SettingsLeadByte() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-[15px] font-semibold text-foreground">{editing.id ? 'Edit Connector' : 'New Connector'}</h3>
+            <h3 className="text-[15px] font-semibold text-foreground">{editing.id ? 'Edit Destination' : 'New Destination'}</h3>
             <div className="flex gap-2">
               <Button variant="ghost" onClick={() => setEditing(null)}>Cancel</Button>
               <Button onClick={saveConnector} className="gap-1.5"><Save className="w-4 h-4" /> Save</Button>
@@ -306,7 +344,18 @@ export default function SettingsLeadByte() {
             <>
               <Card className="bg-card border-border">
                 <CardContent className="p-4 space-y-4">
-                  <div><Label className="text-[12px]">API Name</Label><Input value={editing.api_name || ''} onChange={e => setEditing(p => ({ ...p, api_name: e.target.value }))} className="mt-1 bg-background" /></div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label className="text-[12px]">Name</Label><Input value={editing.api_name || ''} onChange={e => setEditing(p => ({ ...p, api_name: e.target.value }))} className="mt-1 bg-background" /></div>
+                    <div>
+                      <Label className="text-[12px]">Kind</Label>
+                      <SearchableSelect
+                        value={editing.kind || 'leadbyte'}
+                        onValueChange={v => setEditing(p => ({ ...p, kind: v }))}
+                        className="mt-1 bg-background"
+                        options={KIND_OPTIONS}
+                      />
+                    </div>
+                  </div>
                   <div><Label className="text-[12px]">Endpoint URL</Label><Input value={editing.target_url || ''} onChange={e => setEditing(p => ({ ...p, target_url: e.target.value }))} className="mt-1 bg-background font-mono text-[12px]" /></div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -367,6 +416,24 @@ export default function SettingsLeadByte() {
               />
 
               <Card className="bg-card border-border">
+                <CardContent className="p-4 space-y-3">
+                  <div className="text-[13px] font-semibold text-foreground">Triggers</div>
+                  <p className="text-[11px] text-muted-foreground">When should this destination fire? Default destinations always forward on received.</p>
+                  <div className="flex flex-wrap gap-2">
+                    {TRIGGER_OPTIONS.map(t => {
+                      const active = parseJsonArray(editing.triggers).includes(t.value);
+                      return (
+                        <button key={t.value} onClick={() => toggleArrayValue('triggers', t.value)}
+                          className={`px-3 py-1.5 rounded-md text-[12px] border transition-colors ${active ? 'bg-primary/20 text-primary border-primary/40' : 'bg-background text-muted-foreground border-border hover:text-foreground'}`}>
+                          {t.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-card border-border">
                 <CardHeader className="pb-2"><CardTitle className="text-[13px]">Headers</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
                   <div className="grid grid-cols-[1fr_1fr_36px] gap-2 text-[11px] text-muted-foreground font-medium px-1">
@@ -383,12 +450,16 @@ export default function SettingsLeadByte() {
                 </CardContent>
               </Card>
 
-              {/* Actual LeadByte Payload — always visible, editable outbound definition */}
-              <ActualPayloadEditor
-                value={editing.payload_template || '{}'}
-                onChange={v => setEditing(p => ({ ...p, payload_template: v }))}
-                customFields={customFields}
-              />
+              <Card className="bg-card border-border">
+                <CardHeader className="pb-2"><CardTitle className="text-[13px]">Payload Template</CardTitle></CardHeader>
+                <CardContent>
+                  <HighlightedPayloadEditor
+                    value={editing.payload_template || '{}'}
+                    onChange={v => setEditing(p => ({ ...p, payload_template: v }))}
+                    minHeight={360}
+                  />
+                </CardContent>
+              </Card>
 
               {/* Test Lead Collapsible Section */}
               <Collapsible open={testLeadExpanded} onOpenChange={setTestLeadExpanded} className="bg-card border border-border rounded-lg">
@@ -472,7 +543,7 @@ export default function SettingsLeadByte() {
   return (
     <div>
       <div className="flex gap-1 border-b border-border mb-5">
-        {[{ k: 'connectors', l: 'Connectors' }, { k: 'responses', l: 'Response Builder' }].map(({ k, l }) => (
+        {[{ k: 'connectors', l: 'Destinations' }, { k: 'responses', l: 'Response Builder' }].map(({ k, l }) => (
           <button key={k} onClick={() => setActiveTab(k)}
             className={`px-4 py-2 text-[13px] font-medium transition-colors border-b-2 -mb-px
               ${activeTab === k ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
@@ -484,29 +555,46 @@ export default function SettingsLeadByte() {
       {activeTab === 'connectors' && (
         <div>
           <div className="flex justify-end mb-4">
-            <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" /> Add Connector</Button>
+            <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" /> Add Destination</Button>
           </div>
           <div className="space-y-4">
-            {connectors.map(conn => (
+            {connectors.map(conn => {
+              const triggers = parseJsonArray(conn.triggers);
+              const brands = parseJsonArray(conn.filter_brands);
+              const conditions = parseJsonArray(conn.filter_conditions);
+              return (
               <Card key={conn.id} className="bg-card border-border">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-[14px] font-medium text-foreground">{conn.api_name}</div>
-                      <div className="font-mono text-[11px] text-muted-foreground mt-1">{conn.target_url}</div>
-                      <div className="text-[11px] text-muted-foreground mt-1">{conn.content_type || 'application/json'} · {conn.http_method || 'POST'} · {conn.forwarding_mode || 'template'}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[14px] font-medium text-foreground">{conn.api_name}</span>
+                        <Badge variant="outline" className="text-[10px]">{KIND_OPTIONS.find(k => k.value === (conn.kind || 'leadbyte'))?.label || 'LeadByte'}</Badge>
+                      </div>
+                      <div className="font-mono text-[11px] text-muted-foreground mt-1 truncate max-w-[400px]">{conn.target_url}</div>
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {triggers.map(t => <Badge key={t} className="bg-primary/10 text-primary text-[9px]">{TRIGGER_OPTIONS.find(o => o.value === t)?.label || t}</Badge>)}
+                        {conn.is_default && <Badge className="bg-primary/20 text-primary text-[9px]">Default</Badge>}
+                        {brands.length > 0 && <Badge variant="outline" className="text-[9px] text-muted-foreground">Brands: {brands.join(', ')}</Badge>}
+                        {conditions.length > 0 && <Badge variant="outline" className="text-[9px] text-primary/70">{conditions.length} condition(s)</Badge>}
+                        {triggers.length === 0 && brands.length === 0 && conditions.length === 0 && <Badge variant="outline" className="text-[9px] text-muted-foreground">All leads</Badge>}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      {conn.is_default && <Badge className="bg-primary/20 text-primary text-[10px]">Default</Badge>}
                       <Badge variant="outline" className={conn.enabled ? 'status-sold bg-status-sold' : 'text-muted-foreground'}>
                         {conn.enabled ? 'Active' : 'Disabled'}
                       </Badge>
                       <Button size="sm" variant="ghost" onClick={() => openEdit(conn)}>Edit</Button>
+                      <Button size="sm" variant="ghost" onClick={() => toggleEnabled(conn)} className="text-[11px]">
+                        {conn.enabled ? 'Disable' : 'Enable'}
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => deleteConnector(conn.id)} className="h-7 w-7 p-0 text-destructive"><Trash2 className="w-3.5 h-3.5" /></Button>
                     </div>
                   </div>
                 </CardContent>
               </Card>
-            ))}
+              );
+            })}
             {connectors.length === 0 && <div className="text-center py-8 text-muted-foreground text-[13px]">No connectors configured</div>}
           </div>
         </div>

@@ -521,6 +521,38 @@ function fireConnectors(db, connectors, trigger, leadData, leadId, supplierAttri
   }
 }
 
+// Fire matching Deliveries destinations (non-default LeadByteConnector records).
+// Same filter/condition/trigger logic as Conversion Events connectors.
+function fireDeliveries(db, destinations, trigger, leadData, leadId, supplierAttribution, supplierRecord) {
+  for (const dest of destinations) {
+    if (!dest.enabled) continue;
+    if (dest.is_default) continue;
+    const triggers = parseJsonArray(dest.triggers);
+    if (!triggers.includes(trigger)) continue;
+    if (!connectorMatchesFilters(dest, leadData, supplierAttribution, supplierRecord)) continue;
+    if (!connectorMatchesConditions(dest, leadData)) continue;
+
+    const conn = { ...dest, name: dest.api_name };
+    sendHttpEvent(conn, leadData, leadId, '')
+      .then(async (result) => {
+        if (!result.success) {
+          await db.entities.ErrorLog.create({
+            lead_id: leadId, stage: 'leadbyte', severity: 'warning',
+            message: `Delivery failure: ${dest.api_name}`,
+            detail: JSON.stringify(result), supplier_name: supplierAttribution,
+          }).catch(() => {});
+        }
+      })
+      .catch(async (err) => {
+        await db.entities.ErrorLog.create({
+          lead_id: leadId, stage: 'leadbyte', severity: 'warning',
+          message: `Delivery error: ${dest.api_name}`,
+          detail: JSON.stringify({ error: err.message }), supplier_name: supplierAttribution,
+        }).catch(() => {});
+      });
+  }
+}
+
 // Append a CAPI result to the lead's capi_log field.
 async function appendCapiLog(db, leadId, result) {
   try {
@@ -736,16 +768,16 @@ Deno.serve(async (req) => {
     await db.entities.Lead.update(leadId, { lead_id: systemLeadId });
 
     // Load all config in parallel
-    const [hlrSettingsArr, connectors, calcs, customFields, apiConnectors, responseMappings] = await Promise.all([
+    const [hlrSettingsArr, allDestinations, calcs, customFields, apiConnectors, responseMappings] = await Promise.all([
       db.entities.HlrSettings.list(),
-      db.entities.LeadByteConnector.filter({ enabled: true, is_default: true }),
+      db.entities.LeadByteConnector.filter({ enabled: true }),
       db.entities.CustomCalculation.list(),
       db.entities.CustomField.list(),
       db.entities.ApiConnector.filter({ enabled: true }),
       db.entities.ResponseMapping.list('sort_order', 50),
     ]);
     const hlrSettings = hlrSettingsArr[0] || null;
-    const leadByteConnector = connectors[0] || null;
+    const leadByteConnector = allDestinations.find(d => d.is_default) || null;
 
     // Look up supplier record for type-based filtering
     let supplierRecord = null;
@@ -842,6 +874,7 @@ Deno.serve(async (req) => {
 
     // ── b. FIRE ON RECEIVED (fire-and-forget) ────────────────────────────
     fireConnectors(db, apiConnectors, 'on_received', leadPayload, leadId, supplierAttribution, supplierRecord);
+    fireDeliveries(db, allDestinations, 'on_received', leadPayload, leadId, supplierAttribution, supplierRecord);
 
     // ── c. HLR LOOKUP ────────────────────────────────────────────────────
     let hlrResult = null;
@@ -921,6 +954,7 @@ Deno.serve(async (req) => {
       const queueReason = 'Missing or invalid TrustedForm cert';
 
       fireConnectors(db, apiConnectors, 'on_queued', leadPayload, leadId, supplierAttribution, supplierRecord);
+      fireDeliveries(db, allDestinations, 'on_queued', leadPayload, leadId, supplierAttribution, supplierRecord);
       await evaluateNotifications(db, ['lead_queued'], { id: leadId, queue_reason: queueReason }, supplierAttribution, { queue_reason: queueReason });
 
       const mapped = await resolveResponseMapping(db, {}, { Response: 'Queued' }, 'Queued');
@@ -940,6 +974,7 @@ Deno.serve(async (req) => {
     if (missingFields.length > 0) {
       const queueReason = `Missing required fields: ${missingFields.join(', ')}`;
       fireConnectors(db, apiConnectors, 'on_queued', leadPayload, leadId, supplierAttribution, supplierRecord);
+      fireDeliveries(db, allDestinations, 'on_queued', leadPayload, leadId, supplierAttribution, supplierRecord);
       await evaluateNotifications(db, ['lead_queued', 'missing_fields'], { id: leadId, queue_reason: queueReason }, supplierAttribution, { queue_reason: queueReason });
 
       const mapped = await resolveResponseMapping(db, {}, { Response: 'Queued' }, 'Queued');
@@ -1039,6 +1074,7 @@ Deno.serve(async (req) => {
 
         // Fire on_sold connectors (fire-and-forget)
         fireConnectors(db, apiConnectors, 'on_sold', leadPayload, leadId, supplierAttribution, supplierRecord);
+        fireDeliveries(db, allDestinations, 'on_sold', leadPayload, leadId, supplierAttribution, supplierRecord);
       } else if (recordStatus === 'Rejected') {
         // ── f. Rejected => check for queueable patterns ─────────────────
         const rejectionReason = recordResponse.message || recordResponse.reason || recordResponse.error || record.error || record.response_message || '';
@@ -1049,13 +1085,16 @@ Deno.serve(async (req) => {
           supplierResponse = { Response: 'Unsold' };
           // Fire on_queued connectors + evaluate rules
           fireConnectors(db, apiConnectors, 'on_queued', leadPayload, leadId, supplierAttribution, supplierRecord);
+          fireDeliveries(db, allDestinations, 'on_queued', leadPayload, leadId, supplierAttribution, supplierRecord);
           await evaluateNotifications(db, ['lead_queued', 'missing_fields'], { id: leadId, queue_reason: queueReason }, supplierAttribution, { queue_reason: queueReason });
         } else {
           finalStatus = 'Unsold';
           supplierResponse = { Response: 'Unsold' };
           // Fire on_unsold + on_dq connectors
           fireConnectors(db, apiConnectors, 'on_unsold', leadPayload, leadId, supplierAttribution, supplierRecord);
+          fireDeliveries(db, allDestinations, 'on_unsold', leadPayload, leadId, supplierAttribution, supplierRecord);
           fireConnectors(db, apiConnectors, 'on_dq', enrichedData, leadId, supplierAttribution, supplierRecord);
+          fireDeliveries(db, allDestinations, 'on_dq', enrichedData, leadId, supplierAttribution, supplierRecord);
         }
       } else {
         finalStatus = 'Error';
@@ -1085,6 +1124,7 @@ Deno.serve(async (req) => {
         await db.entities.Lead.update(leadId, { queue_reason: queueReason });
         supplierResponse = { Response: 'Unsold' };
         fireConnectors(db, apiConnectors, 'on_queued', leadPayload, leadId, supplierAttribution, supplierRecord);
+        fireDeliveries(db, allDestinations, 'on_queued', leadPayload, leadId, supplierAttribution, supplierRecord);
         await evaluateNotifications(db, ['lead_queued', 'missing_fields'], { id: leadId, queue_reason: queueReason }, supplierAttribution, { queue_reason: queueReason });
       } else {
         finalStatus = 'Error';
