@@ -8,7 +8,7 @@ import {
 const navGroups = [
   { label: 'Overview', icon: LayoutDashboard, path: '/', type: 'single' },
   {
-    label: 'Leads', icon: FileText, type: 'dropdown',
+    label: 'Leads', icon: FileText, type: 'dropdown', path: '/leads/all',
     children: [
       { label: 'All Leads', path: '/leads/all' },
       { label: 'Sold Leads', path: '/leads/sold' },
@@ -21,8 +21,6 @@ const navGroups = [
   {
     label: 'Lead Distribution', icon: Share2, type: 'dropdown',
     children: [
-      { label: 'Campaigns', path: '/campaigns' },
-      { label: 'Buyers', path: '/buyers' },
       { label: 'Suppliers', path: '/suppliers' },
       { label: 'Deliveries', path: '/deliveries' },
       { label: 'Conversion Events', path: '/conversion-events' },
@@ -105,7 +103,7 @@ export default function Sidebar() {
           return (
             <div key={group.label}>
               <button
-                onClick={() => { toggleGroup(group.label); if (group.path) window.location.href = `${group.path}${group.path === '/settings' ? '?tab=general' : ''}`; }}
+                onClick={() => { toggleGroup(group.label); if (group.path) window.location.href = group.path; }}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all duration-150 relative
                   ${hasActiveChild ? 'text-foreground' : 'text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent'}`}
               >
