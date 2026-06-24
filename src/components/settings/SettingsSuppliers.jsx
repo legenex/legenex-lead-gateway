@@ -21,7 +21,7 @@ function generateKey() {
 }
 
 const DEFAULT_FORM = {
-  name: '', sid: '', supplier_type: '', payout_type: 'Flat CPL', email: '',
+  name: '', sid: '', supplier_type: '', payout_type: '', payout_value: null, email: '',
   landing_page_url: '', brand: '', active: true,
 };
 
@@ -105,7 +105,8 @@ export default function SettingsSuppliers() {
       name: supplier.name || '',
       sid: supplier.sid || '',
       supplier_type: supplier.supplier_type || '',
-      payout_type: supplier.payout_type || 'Flat CPL',
+      payout_type: supplier.payout_type || '',
+      payout_value: supplier.payout_value ?? null,
       email: supplier.email || '',
       landing_page_url: supplier.landing_page_url || '',
       brand: supplier.brand || '',
@@ -372,12 +373,14 @@ export default function SettingsSuppliers() {
                     <Label className="text-[12px]">Payout Type</Label>
                     <SearchableSelect
                       value={form.payout_type}
-                      onValueChange={v => setForm(p => ({ ...p, payout_type: v }))}
+                      onValueChange={v => setForm(p => ({ ...p, payout_type: v, payout_value: (v === 'Flat CPL' || v === 'Revenue %' || v === 'Profit %') ? (p.payout_value ?? '') : null }))}
                       className="mt-1 bg-background"
                       options={[
-                        { value: 'Ping-Post', label: 'Ping-Post' },
-                        { value: 'Inbound Call', label: 'Inbound Call' },
+                        { value: '', label: 'None' },
                         { value: 'Flat CPL', label: 'Flat CPL' },
+                        { value: 'Revenue %', label: 'Revenue %' },
+                        { value: 'Profit %', label: 'Profit %' },
+                        { value: 'Inbound Call', label: 'Inbound Call' },
                       ]}
                     />
                   </div>
@@ -394,6 +397,19 @@ export default function SettingsSuppliers() {
                   </div>
                   <div><Label className="text-[12px]">Email</Label><Input value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} className="mt-1 bg-background" /></div>
                 </div>
+                {(form.payout_type === 'Flat CPL' || form.payout_type === 'Revenue %' || form.payout_type === 'Profit %') && (
+                  <div>
+                    <Label className="text-[12px]">{form.payout_type === 'Flat CPL' ? 'Price ($)' : 'Percentage (%)'}</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={form.payout_value ?? ''}
+                      onChange={e => setForm(p => ({ ...p, payout_value: e.target.value === '' ? null : Number(e.target.value) }))}
+                      placeholder={form.payout_type === 'Flat CPL' ? 'e.g. 25.00' : 'e.g. 15'}
+                      className="mt-1 bg-background font-mono text-[12px]"
+                    />
+                  </div>
+                )}
                 <div><Label className="text-[12px]">Landing Page URL</Label><Input value={form.landing_page_url} onChange={e => setForm(p => ({ ...p, landing_page_url: e.target.value }))} className="mt-1 bg-background font-mono text-[12px]" /></div>
                 <div className="flex items-center gap-2"><Switch checked={form.active} onCheckedChange={v => setForm(p => ({ ...p, active: v }))} /><Label className="text-[12px]">Active</Label></div>
               </div>

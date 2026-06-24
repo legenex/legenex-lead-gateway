@@ -21,11 +21,17 @@
     "payout_type": {
       "type": "string",
       "enum": [
-        "Ping-Post",
-        "Inbound Call",
-        "Flat CPL"
+        "",
+        "Flat CPL",
+        "Revenue %",
+        "Profit %",
+        "Inbound Call"
       ],
-      "default": "Flat CPL"
+      "default": ""
+    },
+    "payout_value": {
+      "type": "number",
+      "description": "Price for Flat CPL, or percentage for Revenue % / Profit %"
     },
     "email": {
       "type": "string"
