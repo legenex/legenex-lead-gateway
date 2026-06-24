@@ -1008,13 +1008,18 @@ Deno.serve(async (req) => {
       return Response.json({ Response: 'Error', message: 'No active LeadByte connector configured' }, { status: 200 });
     }
 
-    // Check LeadByte connector filters — skip forwarding if lead doesn't match
+    // Check LeadByte connector filters — route to DQ destinations instead of dropping
     if (!connectorMatchesFilters(leadByteConnector, enrichedData, supplierAttribution, supplierRecord) ||
         !connectorMatchesConditions(leadByteConnector, enrichedData)) {
       const skipResponse = { Response: 'Unsold' };
+      // Fire Disqualified then Unsold triggers so these leads still reach their destinations
+      fireConnectors(db, apiConnectors, 'on_dq', enrichedData, leadId, supplierAttribution, supplierRecord);
+      fireDeliveries(db, allDestinations, 'on_dq', enrichedData, leadId, supplierAttribution, supplierRecord);
+      fireConnectors(db, apiConnectors, 'on_unsold', enrichedData, leadId, supplierAttribution, supplierRecord);
+      fireDeliveries(db, allDestinations, 'on_unsold', enrichedData, leadId, supplierAttribution, supplierRecord);
       await db.entities.Lead.update(leadId, {
-        final_status: 'Unsold',
-        queue_reason: 'Lead did not match LeadByte connector filters',
+        final_status: 'Disqualified',
+        queue_reason: 'Did not match LeadByte filters - routed to DQ destinations',
         processed_at: new Date().toISOString(),
         process_time_ms: Date.now() - startTime,
         response_returned: JSON.stringify(skipResponse),
@@ -1071,6 +1076,20 @@ Deno.serve(async (req) => {
         // ── f. Approved => Sold + FIRE ON SOLD ──────────────────────────
         finalStatus = 'Sold';
         supplierResponse = { Response: 'Sold' };
+
+        // Capture revenue from LeadByte response: buyers[0].revenue, else top-level revenue
+        const buyers = recordResponse.buyers || record.buyers || lbResult.buyers || [];
+        let soldRevenue = null;
+        if (buyers.length > 0 && buyers[0].revenue != null) {
+          soldRevenue = Number(buyers[0].revenue);
+        } else if (lbResult.revenue != null) {
+          soldRevenue = Number(lbResult.revenue);
+        }
+        if (soldRevenue != null && !isNaN(soldRevenue)) {
+          enrichedData.conv_value = soldRevenue;
+          leadPayload.conv_value = soldRevenue;
+          await db.entities.Lead.update(leadId, { revenue: soldRevenue });
+        }
 
         // Fire on_sold connectors (fire-and-forget)
         fireConnectors(db, apiConnectors, 'on_sold', leadPayload, leadId, supplierAttribution, supplierRecord);

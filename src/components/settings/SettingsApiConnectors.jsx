@@ -114,7 +114,11 @@ export default function SettingsApiConnectors() {
     queryFn: () => base44.entities.CustomField.list(),
   });
 
-  const brandOptions = [...new Set(suppliers.map(s => s.brand).filter(Boolean))];
+  const { data: brands = [] } = useQuery({
+    queryKey: ['brands'],
+    queryFn: () => base44.entities.Brand.list(),
+  });
+  const brandOptions = brands.map(b => b.brand_name).filter(Boolean);
   const supplierOptions = suppliers.map(s => ({ value: s.name, label: s.name }));
   const supplierTypeOptions = [
     { value: 'Internal', label: 'Internal' },

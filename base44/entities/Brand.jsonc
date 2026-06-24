@@ -1,0 +1,30 @@
+{
+  "name": "Brand",
+  "type": "object",
+  "properties": {
+    "brand_name": {
+      "type": "string",
+      "description": "Display name of the brand"
+    },
+    "brand_code": {
+      "type": "string",
+      "description": "Short code e.g. CAC = Check A Case, CMC = Check My Claim"
+    },
+    "website_url": {
+      "type": "string",
+      "description": "Brand website URL"
+    },
+    "optin_url": {
+      "type": "string",
+      "description": "Default optin/landing page URL for this brand"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "brand_name",
+    "brand_code"
+  ]
+}

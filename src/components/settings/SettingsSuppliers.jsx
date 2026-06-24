@@ -50,6 +50,11 @@ export default function SettingsSuppliers() {
     queryFn: () => base44.entities.AppSettings.list(),
   });
 
+  const { data: brands = [] } = useQuery({
+    queryKey: ['brands'],
+    queryFn: () => base44.entities.Brand.list(),
+  });
+
   const appSettings = appSettingsArr[0] || {};
   const savedBaseUrl = appSettings.public_base_url || 'https://api.legenex.com';
 
@@ -378,7 +383,15 @@ export default function SettingsSuppliers() {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><Label className="text-[12px]">Brand</Label><Input value={form.brand} onChange={e => setForm(p => ({ ...p, brand: e.target.value }))} className="mt-1 bg-background" /></div>
+                  <div>
+                    <Label className="text-[12px]">Brand</Label>
+                    <SearchableSelect
+                      value={form.brand}
+                      onValueChange={v => setForm(p => ({ ...p, brand: v }))}
+                      className="mt-1 bg-background"
+                      options={[{ value: '', label: '— None —' }, ...brands.map(b => ({ value: b.brand_name, label: b.brand_name }))]}
+                    />
+                  </div>
                   <div><Label className="text-[12px]">Email</Label><Input value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} className="mt-1 bg-background" /></div>
                 </div>
                 <div><Label className="text-[12px]">Landing Page URL</Label><Input value={form.landing_page_url} onChange={e => setForm(p => ({ ...p, landing_page_url: e.target.value }))} className="mt-1 bg-background font-mono text-[12px]" /></div>

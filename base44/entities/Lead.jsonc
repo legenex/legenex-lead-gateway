@@ -94,6 +94,7 @@
         "Sold",
         "Unsold",
         "Queued",
+        "Disqualified",
         "Duplicate",
         "Error"
       ],
