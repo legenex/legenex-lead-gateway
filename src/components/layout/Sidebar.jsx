@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, FileText, Share2, Wrench, Settings as SettingsIcon,
   ChevronDown, ChevronRight,
@@ -62,6 +62,7 @@ function shouldExpand(group, location) {
 
 export default function Sidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
   const initialOpen = navGroups.filter(g => shouldExpand(g, location)).map(g => g.label);
   const [openGroups, setOpenGroups] = useState(initialOpen);
 
@@ -103,7 +104,7 @@ export default function Sidebar() {
           return (
             <div key={group.label}>
               <button
-                onClick={() => { toggleGroup(group.label); if (group.path) window.location.href = group.path; }}
+                onClick={() => { toggleGroup(group.label); if (group.path) navigate(group.path); }}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all duration-150 relative
                   ${hasActiveChild ? 'text-foreground' : 'text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent'}`}
               >
