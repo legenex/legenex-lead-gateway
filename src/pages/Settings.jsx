@@ -5,11 +5,12 @@ import PageHeader from '@/components/shared/PageHeader';
 import SettingsUsers from '@/components/settings/SettingsUsers';
 import SettingsApiKeys from '@/components/settings/SettingsApiKeys';
 import SettingsCustomFields from '@/components/settings/SettingsCustomFields';
+import SettingsGeneral from '@/components/settings/SettingsGeneral';
 import ErrorLogs from '@/pages/ErrorLogs';
 
 export default function Settings() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const tab = searchParams.get('tab') || 'users';
+  const tab = searchParams.get('tab') || 'general';
 
   const setTab = (v) => {
     setSearchParams({ tab: v }, { replace: true });
@@ -17,14 +18,16 @@ export default function Settings() {
 
   return (
     <div>
-      <PageHeader title="Settings" subtitle="Users, API keys, custom fields, and error logs" />
+      <PageHeader title="Settings" subtitle="General settings, users, API keys, custom fields, and error logs" />
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="bg-muted mb-4">
+          <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="apikeys">API Keys</TabsTrigger>
           <TabsTrigger value="fields">Custom Fields</TabsTrigger>
           <TabsTrigger value="errors">Error Logs</TabsTrigger>
         </TabsList>
+        <TabsContent value="general"><SettingsGeneral /></TabsContent>
         <TabsContent value="users"><SettingsUsers /></TabsContent>
         <TabsContent value="apikeys"><SettingsApiKeys /></TabsContent>
         <TabsContent value="fields"><SettingsCustomFields /></TabsContent>

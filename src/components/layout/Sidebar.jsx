@@ -36,17 +36,30 @@ const navGroups = [
       { label: 'Verification', path: '/verification' },
     ],
   },
-  { label: 'Settings', icon: SettingsIcon, path: '/settings', type: 'single' },
+  {
+    label: 'Settings', icon: SettingsIcon, type: 'dropdown', path: '/settings',
+    children: [
+      { label: 'General', path: '/settings', tab: 'general' },
+      { label: 'Users', path: '/settings', tab: 'users' },
+      { label: 'API Keys', path: '/settings', tab: 'apikeys' },
+      { label: 'Custom Fields', path: '/settings', tab: 'fields' },
+      { label: 'Error Logs', path: '/settings', tab: 'errors' },
+    ],
+  },
 ];
 
-function isPathActive(location, path) {
-  if (path === '/') return location.pathname === '/';
-  return location.pathname === path;
+function isChildActive(location, child) {
+  if (child.tab) {
+    const params = new URLSearchParams(location.search);
+    return location.pathname === child.path && params.get('tab') === child.tab;
+  }
+  if (child.path === '/') return location.pathname === '/';
+  return location.pathname === child.path;
 }
 
 function shouldExpand(group, location) {
   if (group.type !== 'dropdown') return false;
-  return group.children.some(c => isPathActive(location, c.path));
+  return group.children.some(c => isChildActive(location, c));
 }
 
 export default function Sidebar() {
@@ -71,7 +84,7 @@ export default function Sidebar() {
           const Icon = group.icon;
 
           if (group.type === 'single') {
-            const isActive = isPathActive(location, group.path);
+            const isActive = group.path === '/' ? location.pathname === '/' : location.pathname === group.path;
             return (
               <Link
                 key={group.label}
@@ -87,12 +100,12 @@ export default function Sidebar() {
           }
 
           const isOpen = openGroups.includes(group.label);
-          const hasActiveChild = group.children.some(c => isPathActive(location, c.path));
+          const hasActiveChild = group.children.some(c => isChildActive(location, c));
 
           return (
             <div key={group.label}>
               <button
-                onClick={() => toggleGroup(group.label)}
+                onClick={() => { toggleGroup(group.label); if (group.path) window.location.href = `${group.path}${group.path === '/settings' ? '?tab=general' : ''}`; }}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all duration-150 relative
                   ${hasActiveChild ? 'text-foreground' : 'text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent'}`}
               >
@@ -104,11 +117,12 @@ export default function Sidebar() {
               {isOpen && (
                 <div className="ml-4 pl-3 border-l border-sidebar-border space-y-0.5 mt-0.5 mb-1">
                   {group.children.map(child => {
-                    const active = isPathActive(location, child.path);
+                    const active = isChildActive(location, child);
+                    const to = child.tab ? `${child.path}?tab=${child.tab}` : child.path;
                     return (
                       <Link
                         key={child.label}
-                        to={child.path}
+                        to={to}
                         className={`flex items-center px-3 py-1.5 rounded-md text-[12px] font-medium transition-all duration-150
                           ${active ? 'bg-primary/10 text-primary' : 'text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent'}`}
                       >
