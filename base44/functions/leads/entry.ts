@@ -1,3 +1,5 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+
 // Public lead intake endpoint (/functions/leads)
 // Delegates the ENTIRE lead-processing pipeline to processLead so there is
 // a single source of truth. processLead handles: API-key auth, HLR, custom
@@ -7,8 +9,7 @@
 // mapping, and outbound webhooks.
 //
 // This wrapper handles CORS and injects the supplier API key from headers
-// into the payload (as _supplier_key) so processLead can find it. Uses fetch
-// (not functions.invoke) to have full control over non-200 responses.
+// into the payload (as _supplier_key) so processLead can find it.
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -17,6 +18,7 @@ const CORS_HEADERS = {
 };
 
 Deno.serve(async (req) => {
+  const base44 = createClientFromRequest(req);
   const method = req.method;
 
   // CORS preflight
@@ -32,7 +34,6 @@ Deno.serve(async (req) => {
     const payload = body.payload || body;
 
     // Extract API key from headers and inject into payload so processLead can authenticate.
-    // processLead already checks payload._supplier_key, payload['X-API-KEY'], and payload['X_KEY'].
     let supplierKeyRaw =
       req.headers.get('X-API-KEY') ||
       req.headers.get('X_KEY') ||
@@ -50,32 +51,29 @@ Deno.serve(async (req) => {
       payload._supplier_key = supplierKeyRaw;
     }
 
-    // Delegate the entire pipeline to processLead — single source of truth.
-    // Use fetch directly (not functions.invoke) so we have full control over
-    // the response, including non-200 status codes (e.g. 401 for invalid API keys).
-    // Forward original headers so createClientFromRequest works in processLead.
-    const processLeadUrl = new URL('/functions/processLead', req.url).href;
-    const fwdHeaders = {};
-    for (const [k, v] of req.headers.entries()) {
-      if (k === 'host' || k === 'content-length' || k === 'content-type') continue;
-      fwdHeaders[k] = v;
+    // Delegate to processLead via SDK functions.invoke (not fetch — fetch to
+    // /functions/processLead doesn't resolve inside the Deno worker).
+    // functions.invoke throws on non-2xx; extract the response body from the error.
+    try {
+      const result = await base44.asServiceRole.functions.invoke('processLead', payload);
+      const data = result?.data !== undefined ? result.data : result;
+      return Response.json(data, { status: 200, headers: CORS_HEADERS });
+    } catch (invokeErr) {
+      // axios-style error: response.data holds the body from processLead
+      const errData = invokeErr?.response?.data;
+      const errStatus = invokeErr?.response?.status || 200;
+      if (errData) {
+        return Response.json(errData, { status: errStatus, headers: CORS_HEADERS });
+      }
+      return Response.json(
+        { Response: 'Error', reason: invokeErr?.message || 'Processing failed' },
+        { status: 200, headers: CORS_HEADERS }
+      );
     }
-    fwdHeaders['Content-Type'] = 'application/json';
-
-    const upstreamResp = await fetch(processLeadUrl, {
-      method: 'POST',
-      headers: fwdHeaders,
-      body: JSON.stringify(payload),
-    });
-    const respText = await upstreamResp.text();
-    const corsHeaders = {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Content-Type, X-API-KEY, X_KEY, Authorization',
-    };
-    let respBody;
-    try { respBody = JSON.parse(respText); } catch { respBody = { Response: 'Error', reason: respText || 'Empty response from pipeline' }; }
-    return Response.json(respBody, { status: upstreamResp.status, headers: corsHeaders });
   } catch (err) {
-    return Response.json({ Response: 'Error', reason: 'Internal processing error' }, { status: 200, headers: CORS_HEADERS });
+    return Response.json(
+      { Response: 'Error', reason: 'Internal processing error' },
+      { status: 200, headers: CORS_HEADERS }
+    );
   }
 });
