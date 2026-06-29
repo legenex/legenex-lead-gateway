@@ -5,10 +5,15 @@ import PageHeader from '@/components/shared/PageHeader';
 import ErrorStatusPill from '@/components/leads/ErrorStatusPill';
 import LeadDetailModal from '@/components/leads/LeadDetailModal';
 import LeadsFilterBar from '@/components/leads/LeadsFilterBar';
+import BulkActionBar from '@/components/leads/BulkActionBar';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import RefreshButton from '@/components/shared/RefreshButton';
 import { Download } from 'lucide-react';
+import { toast } from 'sonner';
 import { format, startOfDay, endOfDay, startOfWeek, startOfMonth, endOfMonth, subDays, subMonths, isAfter } from 'date-fns';
+import { processLead } from '@/functions/processLead';
 
 function getFromMapped(lead, keys) {
   let mf = {};
@@ -153,6 +158,10 @@ export default function LeadsTable({ view }) {
   const [selectedLead, setSelectedLead] = useState(null);
   const [initialTab, setInitialTab] = useState('summary');
   const [savedSets, setSavedSets] = useState(() => loadSavedSets(view));
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [resubmitting, setResubmitting] = useState(false);
+  const [resubmitProgress, setResubmitProgress] = useState(null);
 
   useEffect(() => {
     setSearch('');
@@ -160,6 +169,7 @@ export default function LeadsTable({ view }) {
     setCustomDate({ start: '', end: '' });
     setCustomFilters([]);
     setSavedSets(loadSavedSets(view));
+    setSelectedIds(new Set());
   }, [view]);
 
   const { data: leads = [], isLoading } = useQuery({
@@ -239,6 +249,95 @@ export default function LeadsTable({ view }) {
     persistSavedSets(view, updated);
   };
 
+  const filteredIds = useMemo(() => new Set(filtered.map(l => l.id)), [filtered]);
+  const allFilteredSelected = filtered.length > 0 && filtered.every(l => selectedIds.has(l.id));
+
+  const toggleSelectAll = () => {
+    if (allFilteredSelected) {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        for (const id of filteredIds) next.delete(id);
+        return next;
+      });
+    } else {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        for (const l of filtered) next.add(l.id);
+        return next;
+      });
+    }
+  };
+
+  const toggleSelectRow = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const selectedLeads = useMemo(
+    () => filtered.filter(l => selectedIds.has(l.id)),
+    [filtered, selectedIds]
+  );
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    for (const id of ids) {
+      await base44.entities.Lead.delete(id);
+    }
+    toast.success(`${ids.length} lead${ids.length !== 1 ? 's' : ''} deleted`);
+    clearSelection();
+    setBulkDeleteOpen(false);
+    qc.invalidateQueries({ queryKey: ['leads'] });
+  };
+
+  const handleBulkQueue = async () => {
+    const ids = Array.from(selectedIds);
+    for (const id of ids) {
+      await base44.entities.Lead.update(id, { final_status: 'Queued' });
+    }
+    toast.success(`${ids.length} lead${ids.length !== 1 ? 's' : ''} queued`);
+    clearSelection();
+    qc.invalidateQueries({ queryKey: ['leads'] });
+  };
+
+  const handleBulkResubmit = async () => {
+    const leadsToResubmit = selectedLeads;
+    setResubmitting(true);
+    setResubmitProgress({ done: 0, total: leadsToResubmit.length });
+    let success = 0;
+    let failed = 0;
+    for (let i = 0; i < leadsToResubmit.length; i++) {
+      const lead = leadsToResubmit[i];
+      try {
+        const payload = JSON.parse(lead.raw_payload || '{}');
+        const keys = await base44.entities.ApiKey.filter({ id: lead.supplier_key_id });
+        const key = keys[0]?.key;
+        if (!key) { failed++; continue; }
+        await processLead({ ...payload, _supplier_key: key });
+        success++;
+      } catch {
+        failed++;
+      }
+      setResubmitProgress({ done: i + 1, total: leadsToResubmit.length });
+    }
+    toast.success(`${success} re-submitted${failed > 0 ? `, ${failed} failed` : ''}`);
+    setResubmitting(false);
+    setResubmitProgress(null);
+    clearSelection();
+    qc.invalidateQueries({ queryKey: ['leads'] });
+  };
+
+  const handleBulkEdit = () => {
+    if (selectedLeads.length !== 1) return;
+    setInitialTab('summary');
+    setSelectedLead(selectedLeads[0]);
+  };
+
   return (
     <div>
       <PageHeader title={config.title} subtitle={config.subtitle}>
@@ -265,11 +364,29 @@ export default function LeadsTable({ view }) {
         resultCount={filtered.length}
       />
 
+      <BulkActionBar
+        selectedCount={selectedIds.size}
+        onResubmit={handleBulkResubmit}
+        onDelete={() => setBulkDeleteOpen(true)}
+        onQueue={handleBulkQueue}
+        onEdit={handleBulkEdit}
+        onClear={clearSelection}
+        resubmitting={resubmitting}
+        progress={resubmitProgress}
+      />
+
       <div className="bg-card border border-border rounded-[10px] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-[13px]">
             <thead>
               <tr className="border-b border-border bg-muted/50 sticky top-0">
+                <th className="px-4 py-3 w-[40px]">
+                  <Checkbox
+                    checked={allFilteredSelected}
+                    onCheckedChange={toggleSelectAll}
+                    aria-label="Select all"
+                  />
+                </th>
                 {config.columns.map(colKey => (
                   <th key={colKey} className="text-left px-4 py-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                     {COLUMN_DEFS[colKey]?.header || colKey}
@@ -279,10 +396,10 @@ export default function LeadsTable({ view }) {
             </thead>
             <tbody className="divide-y divide-border">
               {isLoading && (
-                <tr><td colSpan={config.columns.length} className="px-4 py-8 text-center text-muted-foreground">Loading...</td></tr>
+                <tr><td colSpan={config.columns.length + 1} className="px-4 py-8 text-center text-muted-foreground">Loading...</td></tr>
               )}
               {!isLoading && filtered.length === 0 && (
-                <tr><td colSpan={config.columns.length} className="px-4 py-8 text-center text-muted-foreground">No leads found</td></tr>
+                <tr><td colSpan={config.columns.length + 1} className="px-4 py-8 text-center text-muted-foreground">No leads found</td></tr>
               )}
               {filtered.map(lead => (
                 <tr
@@ -290,6 +407,13 @@ export default function LeadsTable({ view }) {
                   className="hover:bg-accent/50 transition-colors cursor-pointer"
                   onClick={() => openLeadDetail(lead)}
                 >
+                  <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                    <Checkbox
+                      checked={selectedIds.has(lead.id)}
+                      onCheckedChange={() => toggleSelectRow(lead.id)}
+                      aria-label={`Select lead ${lead.id}`}
+                    />
+                  </td>
                   {config.columns.map(colKey => {
                     const col = COLUMN_DEFS[colKey];
                     if (!col) return <td key={colKey} className="px-4 py-3">—</td>;
@@ -316,6 +440,23 @@ export default function LeadsTable({ view }) {
           </table>
         </div>
       </div>
+
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent className="bg-popover border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedIds.size} lead{selectedIds.size !== 1 ? 's' : ''}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete {selectedIds.size} lead{selectedIds.size !== 1 ? 's' : ''}. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkDelete} className="bg-destructive text-destructive-foreground">
+              Delete {selectedIds.size} Lead{selectedIds.size !== 1 ? 's' : ''}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <LeadDetailModal
         lead={selectedLead}

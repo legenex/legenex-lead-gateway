@@ -1,14 +1,16 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { RotateCcw, Archive, X } from 'lucide-react';
+import { RotateCcw, Trash2, ListPlus, Pencil, X } from 'lucide-react';
 
 /**
  * Bulk action toolbar shown when one or more leads are selected.
  *
  * Props:
  *  - selectedCount
- *  - onResubmit: () => void  (re-runs pipeline for each selected lead)
- *  - onDelete: () => void    (archive selected leads, with confirm handled by parent)
+ *  - onResubmit: () => void
+ *  - onDelete: () => void         (confirmation handled by parent)
+ *  - onQueue: () => void
+ *  - onEdit: () => void           (only enabled when exactly 1 selected)
  *  - onClear: () => void
  *  - resubmitting: boolean
  *  - progress: { done, total } | null
@@ -17,6 +19,8 @@ export default function BulkActionBar({
   selectedCount,
   onResubmit,
   onDelete,
+  onQueue,
+  onEdit,
   onClear,
   resubmitting = false,
   progress = null,
@@ -38,16 +42,36 @@ export default function BulkActionBar({
         </div>
       )}
 
-      <div className="flex items-center gap-2 ml-auto">
+      <div className="flex items-center gap-2 ml-auto flex-wrap">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onEdit}
+          disabled={selectedCount !== 1 || resubmitting}
+          className="gap-1.5 border-border bg-background text-primary"
+        >
+          <Pencil className="w-3.5 h-3.5" />
+          Edit
+        </Button>
         <Button
           size="sm"
           variant="outline"
           onClick={onResubmit}
           disabled={resubmitting}
-          className="gap-1.5 border-border bg-background"
+          className="gap-1.5 border-border bg-background text-primary"
         >
           <RotateCcw className={`w-3.5 h-3.5 ${resubmitting ? 'animate-spin' : ''}`} />
           {resubmitting ? 'Re-submitting...' : 'Re-submit'}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onQueue}
+          disabled={resubmitting}
+          className="gap-1.5 border-border bg-background"
+        >
+          <ListPlus className="w-3.5 h-3.5" />
+          Queue
         </Button>
         <Button
           size="sm"
@@ -56,8 +80,8 @@ export default function BulkActionBar({
           disabled={resubmitting}
           className="gap-1.5 border-border bg-background text-destructive hover:bg-destructive/10"
         >
-          <Archive className="w-3.5 h-3.5" />
-          Archive
+          <Trash2 className="w-3.5 h-3.5" />
+          Delete
         </Button>
         <Button size="sm" variant="ghost" onClick={onClear} className="gap-1 text-muted-foreground">
           <X className="w-3.5 h-3.5" />
