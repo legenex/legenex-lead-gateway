@@ -1,5 +1,3 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
-
 // Public lead intake endpoint (/functions/leads)
 // Delegates the ENTIRE lead-processing pipeline to processLead so there is
 // a single source of truth. processLead handles: API-key auth, HLR, custom
@@ -8,27 +6,26 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 // CAPI + Deliveries firing on all triggers, duplicate handling, response
 // mapping, and outbound webhooks.
 //
-// This wrapper only handles CORS and injects the supplier API key from
-// headers into the payload (as _supplier_key) so processLead can find it.
+// This wrapper handles CORS and injects the supplier API key from headers
+// into the payload (as _supplier_key) so processLead can find it. Uses fetch
+// (not functions.invoke) to have full control over non-200 responses.
+
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, X-API-KEY, X_KEY, Authorization',
+};
 
 Deno.serve(async (req) => {
-  const base44 = createClientFromRequest(req);
   const method = req.method;
 
   // CORS preflight
   if (method === 'OPTIONS') {
-    return new Response(null, {
-      status: 204,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, X-API-KEY, X_KEY, Authorization',
-      },
-    });
+    return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
 
-  if (method === 'GET') return Response.json({ status: 'ok' }, { status: 200 });
-  if (method !== 'POST') return Response.json({ Response: 'Error', reason: 'Method not allowed' }, { status: 405 });
+  if (method === 'GET') return Response.json({ status: 'ok' }, { status: 200, headers: CORS_HEADERS });
+  if (method !== 'POST') return Response.json({ Response: 'Error', reason: 'Method not allowed' }, { status: 405, headers: CORS_HEADERS });
 
   try {
     const body = await req.json();
@@ -54,25 +51,31 @@ Deno.serve(async (req) => {
     }
 
     // Delegate the entire pipeline to processLead — single source of truth.
-    // base44.functions.invoke throws on non-200 responses (processLead returns
-    // 401 for invalid API keys). Extract the response body so suppliers get
-    // the correct error message.
-    try {
-      const result = await base44.asServiceRole.functions.invoke('processLead', payload);
-      const data = result?.data !== undefined ? result.data : result;
-      return Response.json(data, { status: 200 });
-    } catch (invokeErr) {
-      const errData = invokeErr?.response?.data;
-      if (errData) {
-        let body = errData;
-        if (typeof errData === 'string') {
-          try { body = JSON.parse(errData); } catch { body = { Response: 'Error', reason: errData }; }
-        }
-        return Response.json(body, { status: invokeErr?.response?.status || 200 });
-      }
-      throw invokeErr;
+    // Use fetch directly (not functions.invoke) so we have full control over
+    // the response, including non-200 status codes (e.g. 401 for invalid API keys).
+    // Forward original headers so createClientFromRequest works in processLead.
+    const processLeadUrl = new URL('/functions/processLead', req.url).href;
+    const fwdHeaders = {};
+    for (const [k, v] of req.headers.entries()) {
+      if (k === 'host' || k === 'content-length' || k === 'content-type') continue;
+      fwdHeaders[k] = v;
     }
+    fwdHeaders['Content-Type'] = 'application/json';
+
+    const upstreamResp = await fetch(processLeadUrl, {
+      method: 'POST',
+      headers: fwdHeaders,
+      body: JSON.stringify(payload),
+    });
+    const respText = await upstreamResp.text();
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Content-Type, X-API-KEY, X_KEY, Authorization',
+    };
+    let respBody;
+    try { respBody = JSON.parse(respText); } catch { respBody = { Response: 'Error', reason: respText || 'Empty response from pipeline' }; }
+    return Response.json(respBody, { status: upstreamResp.status, headers: corsHeaders });
   } catch (err) {
-    return Response.json({ Response: 'Error', reason: 'Internal processing error' }, { status: 200 });
+    return Response.json({ Response: 'Error', reason: 'Internal processing error' }, { status: 200, headers: CORS_HEADERS });
   }
 });
