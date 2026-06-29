@@ -1184,8 +1184,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Include revenue in the supplier response when the key is allowed and revenue was captured
-    if (apiKeyRecord.expose_revenue && capturedRevenue != null && !isNaN(capturedRevenue)) {
+    // Include revenue in the supplier response only for master keys and Internal suppliers
+    const exposeRevenue = apiKeyRecord.type === 'master' ||
+      (apiKeyRecord.type === 'supplier' && supplierRecord?.supplier_type === 'Internal');
+    if (exposeRevenue && capturedRevenue != null && !isNaN(capturedRevenue)) {
       supplierResponse = { ...supplierResponse, revenue: capturedRevenue.toFixed(2) };
     }
 
