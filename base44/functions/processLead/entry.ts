@@ -1105,9 +1105,7 @@ Deno.serve(async (req) => {
           capturedRevenue = 0;
         }
         if (capturedRevenue != null && !isNaN(capturedRevenue)) {
-          enrichedData.conv_value = capturedRevenue;
-          leadPayload.conv_value = capturedRevenue;
-          await db.entities.Lead.update(leadId, { revenue: capturedRevenue, conv_value: capturedRevenue });
+          await db.entities.Lead.update(leadId, { revenue: capturedRevenue });
         }
 
         // Fire on_sold connectors (fire-and-forget)
