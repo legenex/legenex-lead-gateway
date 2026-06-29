@@ -211,8 +211,16 @@ export default function SettingsApiKeys() {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1">
-                    <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]" title="Copy prefix"
-                      onClick={() => { navigator.clipboard.writeText(k.key_prefix); toast.success('Prefix copied'); }}>
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]" title="Copy full key"
+                      onClick={() => {
+                        if (k.key) {
+                          navigator.clipboard.writeText(k.key);
+                          toast.success('Full API key copied');
+                        } else {
+                          navigator.clipboard.writeText(k.key_prefix);
+                          toast.error('Full key unavailable — copied prefix only');
+                        }
+                      }}>
                       <Copy className="w-3 h-3" />
                     </Button>
                     <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]" title="Regenerate"
