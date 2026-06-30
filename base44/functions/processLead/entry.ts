@@ -56,6 +56,8 @@ function runCalculations(calcs, leadData, hlrResult, phoneVerifiedSource) {
           const matchKey = Object.keys(map).find(k => k.trim().toLowerCase() === normalized);
           enriched[calc.output_token] = matchKey !== undefined ? map[matchKey] : inputValue;
         }
+      } else if (calc.transform_type === 'clone') {
+        enriched[calc.output_token] = inputValue;
       } else if (calc.transform_type === 'script') {
         enriched[calc.output_token] = inputValue;
       }

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, FileText, Share2, Wrench, Settings as SettingsIcon,
-  ChevronDown, ChevronRight,
+  ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown,
 } from 'lucide-react';
 
 const navGroups = [
@@ -135,8 +135,26 @@ export default function Sidebar() {
         })}
       </nav>
 
-      <div className="px-5 py-4 border-t border-sidebar-border">
-        <div className="text-[11px] text-muted-foreground">v1.0.0</div>
+      <div className="px-3 py-3 border-t border-sidebar-border space-y-2">
+        <button
+          onClick={() => {
+            const labels = navGroups.filter(g => g.type === 'dropdown').map(g => g.label);
+            const allOpen = labels.length > 0 && labels.every(l => openGroups.includes(l));
+            setOpenGroups(allOpen ? [] : labels);
+          }}
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-[12px] font-medium text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent transition-all duration-150 border border-sidebar-border"
+        >
+          {(() => {
+            const labels = navGroups.filter(g => g.type === 'dropdown').map(g => g.label);
+            const allOpen = labels.length > 0 && labels.every(l => openGroups.includes(l));
+            return allOpen ? (
+              <><ChevronsDownUp className="w-3.5 h-3.5" /> Collapse All</>
+            ) : (
+              <><ChevronsUpDown className="w-3.5 h-3.5" /> Expand All</>
+            );
+          })()}
+        </button>
+        <div className="text-[11px] text-muted-foreground text-center">v1.0.0</div>
       </div>
     </aside>
   );

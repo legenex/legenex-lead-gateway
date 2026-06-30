@@ -7,7 +7,7 @@ import StatCard from '@/components/overview/StatCard';
 import HealthStrip from '@/components/overview/HealthStrip';
 import StatusPill from '@/components/shared/StatusPill';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Percent, AlertTriangle, Clock, Copy, Inbox, Zap } from 'lucide-react';
+import { Percent, AlertTriangle, Clock, Copy, Inbox, Zap, Calendar, CalendarDays, Database } from 'lucide-react';
 import RefreshButton from '@/components/shared/RefreshButton';
 import { toast } from 'sonner';
 import { format, subDays, startOfDay, startOfWeek, startOfMonth, isAfter } from 'date-fns';
@@ -33,11 +33,6 @@ export default function Overview() {
   const { data: hlrArr = [] } = useQuery({
     queryKey: ['hlr-settings'],
     queryFn: () => base44.entities.HlrSettings.list(),
-  });
-
-  const { data: connectors = [] } = useQuery({
-    queryKey: ['lb-connectors'],
-    queryFn: () => base44.entities.LeadByteConnector.filter({ enabled: true }),
   });
 
   const { data: appSettingsArr = [] } = useQuery({
@@ -141,73 +136,8 @@ export default function Overview() {
 
       <HealthStrip
         hlrProvider={hlrArr[0]?.provider_name}
-        leadByteConnector={connectors[0]?.api_name}
         lastLeadTime={leads[0]?.created_date}
       />
-
-      {/* KPI Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
-        <KpiCard label="Leads Today" value={leadsToday.length} trend={todayTrend} trendLabel="vs yesterday" />
-        <KpiCard label="This Week" value={leadsWeek.length} />
-        <KpiCard label="This Month" value={leadsMonth.length} />
-        <KpiCard label="All Time" value={leads.length} />
-      </div>
-
-      {/* Stats Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
-        <StatCard label="Sold Rate" value={`${soldRate}%`} icon={Percent} />
-        <StatCard label="Errors Today" value={errorsToday.length} icon={AlertTriangle} />
-        <StatCard label="Queued" value={queuedLeads.length} icon={Inbox} />
-        <StatCard label="Duplicates" value={duplicateLeads.length} icon={Copy} />
-        <StatCard label="CAPI Fires Today" value={capiFiresToday} icon={Zap} />
-      </div>
-
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
-        <div className="lg:col-span-2 bg-card border border-border rounded-[10px] p-5">
-          <div className="text-[13px] font-semibold text-foreground mb-4">Leads — Last 14 Days</div>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={chartData} barGap={1}>
-              <XAxis dataKey="date" tick={{ fill: '#6B7280', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: '#6B7280', fontSize: 11 }} axisLine={false} tickLine={false} width={30} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#1A1F2B', border: '1px solid #232938', borderRadius: '8px', fontSize: 12 }}
-                labelStyle={{ color: '#E6E9F0' }}
-              />
-              <Bar dataKey="Sold" stackId="a" fill="#22C55E" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="Unsold" stackId="a" fill="#F59E0B" />
-              <Bar dataKey="Queued" stackId="a" fill="#A855F7" />
-              <Bar dataKey="Error" stackId="a" fill="#EF4444" radius={[3, 3, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="bg-card border border-border rounded-[10px] p-5">
-          <div className="text-[13px] font-semibold text-foreground mb-4">Outcome Distribution</div>
-          {donutData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie data={donutData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} dataKey="value" stroke="none">
-                  {donutData.map((entry, i) => (
-                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ backgroundColor: '#1A1F2B', border: '1px solid #232938', borderRadius: '8px', fontSize: 12 }} />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-[220px] flex items-center justify-center text-muted-foreground text-[13px]">No data</div>
-          )}
-          <div className="flex justify-center gap-4 mt-2">
-            {donutData.map((d, i) => (
-              <div key={d.name} className="flex items-center gap-1.5 text-[11px]">
-                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: PIE_COLORS[i] }} />
-                <span className="text-muted-foreground">{d.name} ({d.value})</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
 
       {/* Per-Supplier Breakdown */}
       {(() => {
@@ -258,6 +188,78 @@ export default function Overview() {
           </div>
         );
       })()}
+
+      {/* KPI Row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+        <KpiCard label="Leads Today" value={leadsToday.length} trend={todayTrend} trendLabel="vs yesterday" icon={Inbox} />
+        <KpiCard label="This Week" value={leadsWeek.length} icon={CalendarDays} />
+        <KpiCard label="This Month" value={leadsMonth.length} icon={Calendar} />
+        <KpiCard label="All Time" value={leads.length} icon={Database} />
+      </div>
+
+      <div className="mt-6 mb-3 flex items-center gap-2">
+        <div className="text-[12px] font-semibold text-muted-foreground uppercase tracking-wider">Pipeline Metrics</div>
+        <div className="flex-1 h-px bg-border" />
+      </div>
+      {/* Stats Row */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        <StatCard label="Sold Rate" value={`${soldRate}%`} icon={Percent} />
+        <StatCard label="Errors Today" value={errorsToday.length} icon={AlertTriangle} />
+        <StatCard label="Queued" value={queuedLeads.length} icon={Inbox} />
+        <StatCard label="Duplicates" value={duplicateLeads.length} icon={Copy} />
+        <StatCard label="CAPI Fires Today" value={capiFiresToday} icon={Zap} />
+      </div>
+
+      <div className="mt-6 mb-3 flex items-center gap-2">
+        <div className="text-[12px] font-semibold text-muted-foreground uppercase tracking-wider">Analytics</div>
+        <div className="flex-1 h-px bg-border" />
+      </div>
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 bg-card border border-border rounded-[10px] p-5">
+          <div className="text-[13px] font-semibold text-foreground mb-4">Leads — Last 14 Days</div>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={chartData} barGap={1}>
+              <XAxis dataKey="date" tick={{ fill: '#6B7280', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: '#6B7280', fontSize: 11 }} axisLine={false} tickLine={false} width={30} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#1A1F2B', border: '1px solid #232938', borderRadius: '8px', fontSize: 12 }}
+                labelStyle={{ color: '#E6E9F0' }}
+              />
+              <Bar dataKey="Sold" stackId="a" fill="#22C55E" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="Unsold" stackId="a" fill="#F59E0B" />
+              <Bar dataKey="Queued" stackId="a" fill="#A855F7" />
+              <Bar dataKey="Error" stackId="a" fill="#EF4444" radius={[3, 3, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="bg-card border border-border rounded-[10px] p-5">
+          <div className="text-[13px] font-semibold text-foreground mb-4">Outcome Distribution</div>
+          {donutData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie data={donutData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} dataKey="value" stroke="none">
+                  {donutData.map((entry, i) => (
+                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip contentStyle={{ backgroundColor: '#1A1F2B', border: '1px solid #232938', borderRadius: '8px', fontSize: 12 }} />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[220px] flex items-center justify-center text-muted-foreground text-[13px]">No data</div>
+          )}
+          <div className="flex justify-center gap-4 mt-2">
+            {donutData.map((d, i) => (
+              <div key={d.name} className="flex items-center gap-1.5 text-[11px]">
+                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: PIE_COLORS[i] }} />
+                <span className="text-muted-foreground">{d.name} ({d.value})</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
 
       {/* Recent Activity */}
       <div className="bg-card border border-border rounded-[10px] mt-4 overflow-hidden">

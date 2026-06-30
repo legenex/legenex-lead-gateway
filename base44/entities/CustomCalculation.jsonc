@@ -14,6 +14,7 @@
       "enum": [
         "date_age_bucket",
         "value_map",
+        "clone",
         "script"
       ],
       "default": "date_age_bucket"

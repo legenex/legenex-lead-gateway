@@ -52,6 +52,8 @@ function formToRecord(form) {
     const map = {};
     form.value_map.forEach(r => { if (r.from) map[r.from] = r.to; });
     config = { map };
+  } else if (form.transform_type === 'clone') {
+    config = {};
   } else {
     config = { script: form.script };
   }
@@ -188,7 +190,7 @@ export default function CustomCalculations() {
   function addMapRow() { setForm(f => ({ ...f, value_map: [...f.value_map, { from: '', to: '' }] })); }
   function removeMapRow(i) { setForm(f => ({ ...f, value_map: f.value_map.filter((_, idx) => idx !== i) })); }
 
-  const typeLabels = { date_age_bucket: 'Date Age Bucket', value_map: 'Value Map', script: 'Script' };
+  const typeLabels = { date_age_bucket: 'Date Transformer', value_map: 'Value Map', clone: 'Clone', script: 'Script' };
 
   return (
     <div className="p-6">
@@ -246,38 +248,36 @@ export default function CustomCalculations() {
               />
             </div>
 
-            {/* Output Field — directly below Input Field, searchable with inline create */}
-            <div className="space-y-1.5">
-              <Label>Output Field <span className="text-muted-foreground text-xs">(used as {'{{token}}'})</span></Label>
-              <OutputFieldPicker
-                value={form.output_token}
-                onValueChange={({ field_name, label }) => setForm(f => ({ ...f, output_token: field_name, output_label: label }))}
-                fields={customFields}
-                placeholder="Select or create output field…"
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Output Label: <span className="text-foreground font-medium">{form.output_label || form.output_token || '—'}</span>
-                <span className="text-muted-foreground"> (follows the selected field's label)</span>
-              </p>
-            </div>
-
+            {/* Output Field + Output Label on the same line */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label>Transform Type</Label>
-                <SearchableSelect
-                  value={form.transform_type}
-                  onValueChange={v => setF('transform_type', v)}
-                  options={[
-                    { value: 'date_age_bucket', label: 'Date Age Bucket' },
-                    { value: 'value_map', label: 'Value Map' },
-                    { value: 'script', label: 'Script' },
-                  ]}
+                <Label>Output Field <span className="text-muted-foreground text-xs">(used as {'{{token}}'})</span></Label>
+                <OutputFieldPicker
+                  value={form.output_token}
+                  onValueChange={({ field_name, label }) => setForm(f => ({ ...f, output_token: field_name, output_label: label }))}
+                  fields={customFields}
+                  placeholder="Select or create output field…"
                 />
               </div>
               <div className="space-y-1.5">
                 <Label>Output Label</Label>
                 <Input value={form.output_label} onChange={e => setF('output_label', e.target.value)} placeholder={form.output_token || 'Calculated Field Label'} />
               </div>
+            </div>
+
+            {/* Transform Type */}
+            <div className="space-y-1.5">
+              <Label>Transform Type</Label>
+              <SearchableSelect
+                value={form.transform_type}
+                onValueChange={v => setF('transform_type', v)}
+                options={[
+                  { value: 'date_age_bucket', label: 'Date Transformer' },
+                  { value: 'value_map', label: 'Value Map' },
+                  { value: 'clone', label: 'Clone' },
+                  { value: 'script', label: 'Script' },
+                ]}
+              />
             </div>
 
             {/* DATE AGE BUCKET */}
@@ -335,6 +335,15 @@ export default function CustomCalculations() {
                 />
                 <p className="text-xs text-muted-foreground">
                   Available: <code className="bg-muted px-1 rounded">value</code> (input field value), <code className="bg-muted px-1 rounded">lead</code> (full payload). Must return the output value.
+                </p>
+              </div>
+            )}
+
+            {/* CLONE */}
+            {form.transform_type === 'clone' && (
+              <div className="rounded-lg border border-border bg-muted/30 p-4">
+                <p className="text-[13px] text-muted-foreground leading-relaxed">
+                  Clones the value of <span className="font-mono text-foreground">{form.input_field || 'the input field'}</span> into <span className="font-mono text-foreground">{`{{${form.output_token || 'output_field'}}}`}</span>. No additional configuration needed.
                 </p>
               </div>
             )}
