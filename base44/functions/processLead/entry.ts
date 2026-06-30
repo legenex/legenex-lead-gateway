@@ -727,6 +727,7 @@ Deno.serve(async (req) => {
     }
 
     const leadPayload = { ...payload };
+    const inboundPhoneVerified = String(payload.phone_verified || '').trim();
     delete leadPayload['X-API-KEY'];
     delete leadPayload._supplier_key;
     delete leadPayload.phone_verified;
@@ -884,11 +885,12 @@ Deno.serve(async (req) => {
     const leadRouteRaw = String(leadPayload.lead_route || 'standard').trim().toLowerCase();
     const routeIs = {
       direct: leadRouteRaw.includes('direct'),
+      data: leadRouteRaw.includes('data'),
       event: leadRouteRaw.includes('event'),
       queue: leadRouteRaw.includes('queue'),
       test: leadRouteRaw.includes('test'),
     };
-    routeIs.standard = !routeIs.direct && !routeIs.event && !routeIs.queue && !routeIs.test;
+    routeIs.standard = !routeIs.direct && !routeIs.data && !routeIs.event && !routeIs.queue && !routeIs.test;
 
     // TEST route: save only — no processing, no triggers
     if (routeIs.test) {
@@ -930,7 +932,8 @@ Deno.serve(async (req) => {
     let hlrResult = null;
     let hlrRequestBody = {};
 
-    if (hlrSettings && hlrSettings.enabled) {
+    const hlrRouteAllowed = routeIs.standard || routeIs.direct || routeIs.data;
+    if (hlrSettings && hlrSettings.enabled && hlrRouteAllowed && !inboundPhoneVerified) {
       const reqFieldMap = typeof hlrSettings.request_field_map === 'string'
         ? JSON.parse(hlrSettings.request_field_map || '{}')
         : (hlrSettings.request_field_map || {});
@@ -992,6 +995,9 @@ Deno.serve(async (req) => {
       enrichedData.hlr_status = hlrResult.lh_hlr_response || '';
       enrichedData.hlr_score = hlrResult.summary_score != null ? String(hlrResult.summary_score) : '';
       enrichedData.country_code = hlrResult.country_code || '';
+    }
+    if (inboundPhoneVerified && !hlrResult) {
+      enrichedData.phone_verified = inboundPhoneVerified;
     }
 
     // ── d. GATE: TrustedForm cert (hard enforce) ─────────────────────────

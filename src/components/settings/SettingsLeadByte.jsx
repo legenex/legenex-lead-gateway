@@ -160,7 +160,7 @@ const KIND_OPTIONS = [
   { value: 'leadbyte', label: 'Leadbyte' },
   { value: 'bigquery', label: 'BigQuery' },
   { value: 'data', label: 'Data' },
-  { value: 'generic_http', label: 'Generic HTTP' },
+  { value: 'generic_http', label: 'Webhook' },
 ];
 
 function parseJsonArray(val) {
