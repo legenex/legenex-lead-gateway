@@ -20,8 +20,8 @@ const navGroups = [
   {
     label: 'Lead Distribution', icon: Share2, type: 'dropdown',
     children: [
+      { label: 'Campaigns', path: '/campaigns' },
       { label: 'Deliveries', path: '/deliveries' },
-      { label: 'Suppliers', path: '/suppliers' },
       { label: 'Conversion Events', path: '/conversion-events' },
     ],
   },

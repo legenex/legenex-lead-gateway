@@ -19,7 +19,7 @@ import LeadsView from '@/pages/LeadsView';
 import QueueRecovery from '@/pages/QueueRecovery';
 import Campaigns from '@/pages/Campaigns';
 import Buyers from '@/pages/Buyers';
-import Suppliers from '@/pages/Suppliers';
+
 import Deliveries from '@/pages/Deliveries';
 import ConversionEvents from '@/pages/ConversionEvents';
 import Notifications from '@/pages/Notifications';
@@ -68,7 +68,7 @@ const AuthenticatedApp = () => {
           <Route path="/errors" element={<Navigate to="/settings?tab=errors" replace />} />
           <Route path="/campaigns" element={<Campaigns />} />
           <Route path="/buyers" element={<Buyers />} />
-          <Route path="/suppliers" element={<Suppliers />} />
+          <Route path="/suppliers" element={<Navigate to="/campaigns" replace />} />
           <Route path="/deliveries" element={<Deliveries />} />
           <Route path="/conversion-events" element={<ConversionEvents />} />
           <Route path="/lead-distribution" element={<Navigate to="/campaigns" replace />} />

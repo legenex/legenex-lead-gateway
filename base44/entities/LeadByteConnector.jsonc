@@ -64,6 +64,10 @@
       "type": "string",
       "description": "JSON string of the last test payload used in the Send Test Lead section"
     },
+    "filter_verticals": {
+      "type": "string",
+      "description": "JSON array of vertical codes to match against the lead's vertical field. Empty array = match all"
+    },
     "filter_brands": {
       "type": "string",
       "description": "JSON array of brand names to match. Empty array = match all"

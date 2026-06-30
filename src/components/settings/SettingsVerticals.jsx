@@ -1,0 +1,146 @@
+import React, { useState } from 'react';
+import { base44 } from '@/api/base44Client';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Plus, Save, Trash2, Info } from 'lucide-react';
+import { toast } from 'sonner';
+
+const DEFAULT_FORM = { name: '', code: '', description: '', active: true };
+
+export default function SettingsVerticals() {
+  const qc = useQueryClient();
+  const [modal, setModal] = useState(false);
+  const [form, setForm] = useState(DEFAULT_FORM);
+  const [editingId, setEditingId] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
+  const { data: verticals = [] } = useQuery({
+    queryKey: ['verticals'],
+    queryFn: () => base44.entities.Vertical.list('-created_date'),
+  });
+
+  const openCreate = () => { setForm(DEFAULT_FORM); setEditingId(null); setModal(true); };
+
+  const openEdit = (v) => {
+    setForm({ name: v.name || '', code: v.code || '', description: v.description || '', active: v.active ?? true });
+    setEditingId(v.id);
+    setModal(true);
+  };
+
+  const save = async () => {
+    if (editingId) {
+      await base44.entities.Vertical.update(editingId, form);
+      toast.success('Vertical updated');
+    } else {
+      await base44.entities.Vertical.create(form);
+      toast.success('Vertical created');
+    }
+    qc.invalidateQueries({ queryKey: ['verticals'] });
+    setModal(false);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    await base44.entities.Vertical.delete(deleteTarget.id);
+    qc.invalidateQueries({ queryKey: ['verticals'] });
+    toast.success('Vertical deleted');
+    setDeleteTarget(null);
+  };
+
+  const toggleActive = async (v) => {
+    await base44.entities.Vertical.update(v.id, { active: !v.active });
+    qc.invalidateQueries({ queryKey: ['verticals'] });
+  };
+
+  return (
+    <div>
+      <div className="flex justify-end mb-4">
+        <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" /> Add Vertical</Button>
+      </div>
+
+      <div className="bg-card border border-border rounded-[10px] overflow-hidden">
+        <table className="w-full text-[13px]">
+          <thead>
+            <tr className="border-b border-border bg-muted/50">
+              {['Vertical', 'Code', 'Description', 'Status', 'Actions'].map(h => (
+                <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {verticals.length === 0 && (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">No verticals yet</td></tr>
+            )}
+            {verticals.map(v => (
+              <tr key={v.id} className="hover:bg-accent/40 transition-colors">
+                <td className="px-4 py-3 font-medium text-foreground">{v.name}</td>
+                <td className="px-4 py-3"><Badge variant="outline" className="text-[10px] font-mono">{v.code}</Badge></td>
+                <td className="px-4 py-3 text-muted-foreground text-[12px] truncate max-w-[260px]">{v.description || '—'}</td>
+                <td className="px-4 py-3">
+                  <Badge variant="outline" className={`text-[9px] ${v.active ? 'status-sold bg-status-sold' : 'text-muted-foreground'}`}>
+                    {v.active ? 'Active' : 'Inactive'}
+                  </Badge>
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-1">
+                    <Button size="sm" variant="ghost" onClick={() => openEdit(v)} className="h-7 text-[11px] px-2">Edit</Button>
+                    <Button size="sm" variant="ghost" onClick={() => toggleActive(v)} className="h-7 text-[11px] px-2 text-muted-foreground">{v.active ? 'Deactivate' : 'Activate'}</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(v)} className="h-7 w-7 p-0 text-destructive hover:text-destructive" title="Delete Vertical"><Trash2 className="w-3 h-3" /></Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(v) => { if (!v) setDeleteTarget(null); }}>
+        <AlertDialogContent className="bg-popover border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete vertical?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete "{deleteTarget?.name}". Delivery destinations filtered by this vertical will no longer match it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={modal} onOpenChange={(v) => { if (!v) setModal(false); }}>
+        <DialogContent className="bg-popover border-border max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle>{editingId ? 'Edit Vertical' : 'New Vertical'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-start gap-2 rounded-md border border-primary/30 bg-primary/5 p-3 text-[11px] text-muted-foreground leading-relaxed">
+              <Info className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" />
+              <span>
+                Verticals segment leads into delivery buckets. The inbound payload's <code className="bg-muted px-1 rounded text-primary font-mono">vertical</code> field is matched against Delivery destinations configured with this vertical — only leads whose <code className="bg-muted px-1 rounded text-primary font-mono">vertical</code> matches will be sent to those destinations. Use the <strong>Code</strong> to match the exact value suppliers send (e.g. <code className="font-mono">MVA</code>, <code className="font-mono">WC</code>, <code className="font-mono">DEBT</code>).
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label className="text-[12px]">Vertical Name *</Label><Input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Motor Vehicle Accident" className="mt-1 bg-background" /></div>
+              <div><Label className="text-[12px]">Code *</Label><Input value={form.code} onChange={e => setForm(p => ({ ...p, code: e.target.value }))} placeholder="e.g. MVA" className="mt-1 bg-background font-mono text-[12px]" /></div>
+            </div>
+            <div><Label className="text-[12px]">Description</Label><Textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="What this vertical covers..." className="mt-1 bg-background text-[12px]" /></div>
+            <div className="flex items-center gap-2"><Switch checked={form.active} onCheckedChange={v => setForm(p => ({ ...p, active: v }))} /><Label className="text-[12px]">Active</Label></div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setModal(false)}>Cancel</Button>
+            <Button onClick={save} disabled={!form.name || !form.code} className="gap-1.5"><Save className="w-4 h-4" /> {editingId ? 'Save Changes' : 'Create Vertical'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

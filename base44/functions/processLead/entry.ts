@@ -412,6 +412,11 @@ async function sendHttpEvent(conn, leadData, leadId, eventName) {
 
 // Check if a connector's filters match the current lead.
 function connectorMatchesFilters(conn, leadData, supplierAttribution, supplierRecord) {
+  const verticals = parseJsonArray(conn.filter_verticals);
+  if (verticals.length > 0) {
+    const lv = leadData.vertical || '';
+    if (!verticals.includes(lv)) return false;
+  }
   const brands = parseJsonArray(conn.filter_brands);
   if (brands.length > 0) {
     const lb = leadData.supplier_brand || leadData.brand || '';

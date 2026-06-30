@@ -260,7 +260,7 @@ export default function SettingsLeadByte() {
       content_type: 'application/json', headers: '[]',
       payload_template: buildDefaultActualPayload(customFields), enabled: true, is_default: false,
       forwarding_mode: 'template',
-      filter_brands: '[]', filter_suppliers: '[]', filter_supplier_types: '[]', filter_conditions: '[]',
+      filter_brands: '[]', filter_verticals: '[]', filter_suppliers: '[]', filter_supplier_types: '[]', filter_conditions: '[]',
       kind: 'leadbyte', triggers: '["on_received"]',
     });
     setHeaderRows([{ key: 'X_KEY', value: '' }, { key: 'Content-Type', value: 'application/json' }]);
@@ -599,6 +599,7 @@ export default function SettingsLeadByte() {
             }).map(conn => {
               const triggers = parseJsonArray(conn.triggers);
               const brands = parseJsonArray(conn.filter_brands);
+              const verticals = parseJsonArray(conn.filter_verticals);
               const conditions = parseJsonArray(conn.filter_conditions);
               return (
               <Card key={conn.id} className="bg-card border-border">
@@ -614,6 +615,7 @@ export default function SettingsLeadByte() {
                         {triggers.map(t => <Badge key={t} className="bg-primary/10 text-primary text-[9px]">{TRIGGER_OPTIONS.find(o => o.value === t)?.label || t}</Badge>)}
                         {conn.is_default && <Badge className="bg-primary/20 text-primary text-[9px]">Default</Badge>}
                         {brands.length > 0 && <Badge variant="outline" className="text-[9px] text-muted-foreground">Brands: {brands.join(', ')}</Badge>}
+                        {verticals.length > 0 && <Badge variant="outline" className="text-[9px] text-primary/70">Verticals: {verticals.join(', ')}</Badge>}
                         {conditions.length > 0 && <Badge variant="outline" className="text-[9px] text-primary/70">{conditions.length} condition(s)</Badge>}
                         {triggers.length === 0 && brands.length === 0 && conditions.length === 0 && <Badge variant="outline" className="text-[9px] text-muted-foreground">All leads</Badge>}
                       </div>
