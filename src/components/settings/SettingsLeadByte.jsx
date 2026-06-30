@@ -639,13 +639,20 @@ export default function SettingsLeadByte() {
                       <div className="flex items-center gap-2">
                         <span className="text-[14px] font-medium text-foreground">{conn.api_name}</span>
                         <Badge variant="outline" className="text-[10px]">{KIND_OPTIONS.find(k => k.value === (conn.kind || 'leadbyte'))?.label || 'Leadbyte'}</Badge>
+                        {verticals.length > 0 ? (
+                          <Badge className="bg-primary/15 text-primary text-[10px] border border-primary/40 font-semibold inline-flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                            {verticals.map(code => verticalList.find(v => v.code === code)?.name || code).join(', ')}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] text-muted-foreground">All Verticals</Badge>
+                        )}
                       </div>
                       <div className="font-mono text-[11px] text-muted-foreground mt-1 truncate max-w-[400px]">{conn.target_url}</div>
                       <div className="flex flex-wrap gap-1.5 mt-2">
                         {triggers.map(t => <Badge key={t} className="bg-primary/10 text-primary text-[9px]">{TRIGGER_OPTIONS.find(o => o.value === t)?.label || t}</Badge>)}
                         {conn.is_default && <Badge className="bg-primary/20 text-primary text-[9px]">Default</Badge>}
                         {brands.length > 0 && <Badge variant="outline" className="text-[9px] text-muted-foreground">Brands: {brands.join(', ')}</Badge>}
-                        {verticals.length > 0 && <Badge variant="outline" className="text-[9px] text-primary/70">Verticals: {verticals.join(', ')}</Badge>}
                         {conditions.length > 0 && <Badge variant="outline" className="text-[9px] text-primary/70">{conditions.length} condition(s)</Badge>}
                         {triggers.length === 0 && brands.length === 0 && conditions.length === 0 && <Badge variant="outline" className="text-[9px] text-muted-foreground">All leads</Badge>}
                       </div>
