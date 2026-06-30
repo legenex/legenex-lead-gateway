@@ -130,7 +130,7 @@ export default function SettingsGeneral() {
         <Card className="bg-card border-border">
           <CardHeader>
             <CardTitle className="text-[14px] flex items-center gap-2">
-              <Shield className="w-4 h-4 text-primary" /> lead_route Reference
+              <Shield className="w-4 h-4 text-primary" /> Lead Route Reference
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
