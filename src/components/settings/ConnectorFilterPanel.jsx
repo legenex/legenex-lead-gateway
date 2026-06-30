@@ -29,6 +29,22 @@ export default function ConnectorFilterPanel({ editing, onFieldChange, brandOpti
     'accident_date', 'accident_date_2', 'incident_date_3', 'has_attorney', 'phone_verified', 'hlr_status', 'hlr_score',
   ])];
 
+  // Predefined value options for calculated fields (date buckets / value maps), keyed by output_token.
+  const fieldValueOptions = {};
+  for (const c of calcs) {
+    if (!c.output_token) continue;
+    let cfg = {};
+    try { cfg = JSON.parse(c.config || '{}'); } catch {}
+    let opts = [];
+    if (c.transform_type === 'date_age_bucket') {
+      if (Array.isArray(cfg.buckets)) opts = cfg.buckets.map(b => ({ value: b.label, label: b.label })).filter(o => o.value);
+      if (cfg.fallback) opts.push({ value: cfg.fallback, label: cfg.fallback });
+    } else if (c.transform_type === 'value_map' && cfg.map && typeof cfg.map === 'object') {
+      opts = [...new Set(Object.values(cfg.map))].map(to => ({ value: to, label: to }));
+    }
+    if (opts.length > 0) fieldValueOptions[c.output_token] = opts;
+  }
+
   const renderPills = (field, options) => {
     if (!options || options.length === 0) return <span className="text-[11px] text-muted-foreground">None configured</span>;
     return options.map(opt => {
@@ -75,6 +91,7 @@ export default function ConnectorFilterPanel({ editing, onFieldChange, brandOpti
               value={editing.filter_conditions || '[]'}
               onChange={v => onFieldChange('filter_conditions', v)}
               fieldOptions={fieldOptions}
+              fieldValueOptions={fieldValueOptions}
             />
           </div>
         </div>
