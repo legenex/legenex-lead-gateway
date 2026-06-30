@@ -163,6 +163,42 @@ const KIND_OPTIONS = [
   { value: 'generic_http', label: 'Webhook' },
 ];
 
+// Distinct color per vertical — deterministic hash of the vertical code picks a palette slot.
+const VERTICAL_PALETTE = [
+  { badge: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40', dot: 'bg-emerald-400' },
+  { badge: 'bg-blue-500/15 text-blue-300 border-blue-500/40', dot: 'bg-blue-400' },
+  { badge: 'bg-amber-500/15 text-amber-300 border-amber-500/40', dot: 'bg-amber-400' },
+  { badge: 'bg-purple-500/15 text-purple-300 border-purple-500/40', dot: 'bg-purple-400' },
+  { badge: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/40', dot: 'bg-cyan-400' },
+  { badge: 'bg-rose-500/15 text-rose-300 border-rose-500/40', dot: 'bg-rose-400' },
+  { badge: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/40', dot: 'bg-indigo-400' },
+  { badge: 'bg-teal-500/15 text-teal-300 border-teal-500/40', dot: 'bg-teal-400' },
+  { badge: 'bg-orange-500/15 text-orange-300 border-orange-500/40', dot: 'bg-orange-400' },
+  { badge: 'bg-pink-500/15 text-pink-300 border-pink-500/40', dot: 'bg-pink-400' },
+];
+
+function verticalColor(code) {
+  const s = String(code || '');
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return VERTICAL_PALETTE[h % VERTICAL_PALETTE.length];
+}
+
+// Distinct muted color per trigger / meta tag.
+const TRIGGER_COLORS = {
+  on_received: 'bg-blue-500/15 text-blue-300 border border-blue-500/30',
+  on_sold: 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30',
+  on_unsold: 'bg-amber-500/15 text-amber-300 border border-amber-500/30',
+  on_dq: 'bg-rose-500/15 text-rose-300 border border-rose-500/30',
+  on_queued: 'bg-purple-500/15 text-purple-300 border border-purple-500/30',
+};
+const META_TAG_COLORS = {
+  default: 'bg-indigo-500/15 text-indigo-300 border border-indigo-500/30',
+  conditions: 'bg-slate-500/15 text-slate-300 border border-slate-500/30',
+  brands: 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30',
+  allLeads: 'bg-muted text-muted-foreground border border-border',
+};
+
 function parseJsonArray(val) {
   if (!val) return [];
   if (Array.isArray(val)) return val;
@@ -652,21 +688,26 @@ export default function SettingsLeadByte() {
                         <span className="text-[14px] font-medium text-foreground">{conn.api_name}</span>
                         <Badge variant="outline" className="text-[10px]">{KIND_OPTIONS.find(k => k.value === (conn.kind || 'leadbyte'))?.label || 'Leadbyte'}</Badge>
                         {verticals.length > 0 ? (
-                          <Badge className="bg-primary/15 text-primary text-[10px] border border-primary/40 font-semibold inline-flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                            {verticals.map(code => verticalList.find(v => v.code === code)?.name || code).join(', ')}
-                          </Badge>
+                          (() => {
+                            const vc = verticalColor(verticals[0]);
+                            return (
+                              <Badge className={`text-[10px] font-semibold inline-flex items-center gap-1 ${vc.badge}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${vc.dot}`} />
+                                {verticals.map(code => verticalList.find(v => v.code === code)?.name || code).join(', ')}
+                              </Badge>
+                            );
+                          })()
                         ) : (
                           <Badge variant="outline" className="text-[10px] text-muted-foreground">All Verticals</Badge>
                         )}
                       </div>
                       <div className="font-mono text-[11px] text-muted-foreground mt-1 truncate max-w-[400px]">{conn.target_url}</div>
                       <div className="flex flex-wrap gap-1.5 mt-2">
-                        {triggers.map(t => <Badge key={t} className="bg-primary/10 text-primary text-[9px]">{TRIGGER_OPTIONS.find(o => o.value === t)?.label || t}</Badge>)}
-                        {conn.is_default && <Badge className="bg-primary/20 text-primary text-[9px]">Default</Badge>}
-                        {brands.length > 0 && <Badge variant="outline" className="text-[9px] text-muted-foreground">Brands: {brands.join(', ')}</Badge>}
-                        {conditions.length > 0 && <Badge variant="outline" className="text-[9px] text-primary/70">{conditions.length} condition(s)</Badge>}
-                        {triggers.length === 0 && brands.length === 0 && conditions.length === 0 && <Badge variant="outline" className="text-[9px] text-muted-foreground">All leads</Badge>}
+                        {triggers.map(t => <Badge key={t} className={`text-[9px] ${TRIGGER_COLORS[t] || 'bg-muted text-muted-foreground border border-border'}`}>{TRIGGER_OPTIONS.find(o => o.value === t)?.label || t}</Badge>)}
+                        {conn.is_default && <Badge className={`text-[9px] ${META_TAG_COLORS.default}`}>Default</Badge>}
+                        {brands.length > 0 && <Badge className={`text-[9px] ${META_TAG_COLORS.brands}`}>Brands: {brands.join(', ')}</Badge>}
+                        {conditions.length > 0 && <Badge className={`text-[9px] ${META_TAG_COLORS.conditions}`}>{conditions.length} condition(s)</Badge>}
+                        {triggers.length === 0 && brands.length === 0 && conditions.length === 0 && <Badge className={`text-[9px] ${META_TAG_COLORS.allLeads}`}>All leads</Badge>}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
