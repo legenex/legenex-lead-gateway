@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Save, Building2, Shield, Cpu, Globe } from 'lucide-react';
+import { Save, Building2, Shield, Globe } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function SettingsGeneral() {
@@ -29,7 +29,6 @@ export default function SettingsGeneral() {
         brand_tagline: settings.brand_tagline || '',
         public_base_url: settings.public_base_url || '',
         default_fail_mode: settings.default_fail_mode || 'fail_open',
-        adaptive_fields_enabled: settings.adaptive_fields_enabled ?? true,
         require_trustedform_cert: settings.require_trustedform_cert ?? true,
         fb_api_version: settings.fb_api_version || 'v25.0',
         fb_api_version_auto: settings.fb_api_version_auto ?? true,
@@ -56,7 +55,8 @@ export default function SettingsGeneral() {
   if (!form) return <div className="py-8 text-center text-muted-foreground">Loading...</div>;
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="lg:col-span-2 space-y-6">
       <Card className="bg-card border-border">
         <CardHeader>
           <CardTitle className="text-[14px] flex items-center gap-2">
@@ -121,26 +121,37 @@ export default function SettingsGeneral() {
         </CardContent>
       </Card>
 
-      <Card className="bg-card border-border">
-        <CardHeader>
-          <CardTitle className="text-[14px] flex items-center gap-2">
-            <Cpu className="w-4 h-4 text-primary" /> Adaptive Fields
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <Label className="text-[12px]">Auto-Catalog New Fields</Label>
-              <p className="text-[11px] text-muted-foreground mt-0.5">New inbound payload keys are automatically cataloged as CustomFields.</p>
-            </div>
-            <Switch checked={form.adaptive_fields_enabled} onCheckedChange={v => setForm(p => ({ ...p, adaptive_fields_enabled: v }))} />
-          </div>
-        </CardContent>
-      </Card>
-
       <Button onClick={handleSave} disabled={saving} className="gap-1.5">
         <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save Settings'}
       </Button>
+      </div>
+
+      <div>
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <CardTitle className="text-[14px] flex items-center gap-2">
+              <Shield className="w-4 h-4 text-primary" /> lead_route Reference
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-[11px] text-muted-foreground">Set <code className="bg-muted px-1 rounded text-primary font-mono">lead_route</code> in the inbound payload to control routing. Matching uses a case-insensitive "contains" filter.</p>
+            <div className="space-y-2">
+              {[
+                ['standard', 'Goes to Leadbyte (default)'],
+                ['direct', 'Bypasses Leadbyte and allows all other delivery / event processing'],
+                ['event', 'Only allows leads to be sent to Conversion Events'],
+                ['queue', 'Holds lead for manual processing'],
+                ['test', 'Sends test lead to system and does nothing else — sits in system for testing'],
+              ].map(([val, desc]) => (
+                <div key={val} className="border border-border rounded-md p-2.5">
+                  <div className="font-mono text-[12px] text-primary font-semibold">{val}</div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">{desc}</div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

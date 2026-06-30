@@ -6,6 +6,7 @@ import SettingsUsers from '@/components/settings/SettingsUsers';
 import SettingsApiKeys from '@/components/settings/SettingsApiKeys';
 import SettingsCustomFields from '@/components/settings/SettingsCustomFields';
 import SettingsGeneral from '@/components/settings/SettingsGeneral';
+import SettingsIgnoreList from '@/components/settings/SettingsIgnoreList';
 import ErrorLogs from '@/pages/ErrorLogs';
 
 export default function Settings() {
@@ -18,7 +19,7 @@ export default function Settings() {
 
   return (
     <div>
-      <PageHeader title="Settings" subtitle="General settings, users, API keys, custom fields, and error logs" />
+      <PageHeader title="Settings" subtitle="General settings, users, API keys, custom fields, error logs, and adaptive fields" />
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="bg-muted mb-4">
           <TabsTrigger value="general">General</TabsTrigger>
@@ -26,12 +27,14 @@ export default function Settings() {
           <TabsTrigger value="apikeys">API Keys</TabsTrigger>
           <TabsTrigger value="fields">Custom Fields</TabsTrigger>
           <TabsTrigger value="errors">Error Logs</TabsTrigger>
+          <TabsTrigger value="adaptive">Adaptive Fields</TabsTrigger>
         </TabsList>
         <TabsContent value="general"><SettingsGeneral /></TabsContent>
         <TabsContent value="users"><SettingsUsers /></TabsContent>
         <TabsContent value="apikeys"><SettingsApiKeys /></TabsContent>
         <TabsContent value="fields"><SettingsCustomFields /></TabsContent>
         <TabsContent value="errors"><ErrorLogs embedded /></TabsContent>
+        <TabsContent value="adaptive"><SettingsIgnoreList /></TabsContent>
       </Tabs>
     </div>
   );

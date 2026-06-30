@@ -73,6 +73,55 @@ const DEFAULT_TEST_PAYLOAD = {
   utm_ad_label: "Ad Labal"
 };
 
+const TOKEN_STATIC_DEFAULTS = {
+  firstname: 'Maakel', first_name: 'Maakel',
+  lastname: 'Smuf', last_name: 'Smuf',
+  email: 'test@example.com',
+  phone1: '4249442024', mobile: '4249442024', phone: '4249442024', phone_number: '4249442024',
+  zip: '90210', zipcode: '90210',
+  ip_address: '5.5.5.5', ipaddress: '5.5.5.5',
+  city: 'Beverly Hills', geoip_city: 'Beverly Hills',
+  state: 'CA', geoip_state: 'CA', accident_state: 'CA',
+  country: 'USA', geoip_country: 'USA',
+  accident_type: 'Auto',
+  accident_date: 'Within 7 Days', incident_date: '06/12/2025',
+  injured: 'Yes', injury_type: 'Broken Bones', treatment: 'Yes', treatment_type: 'Hospital',
+  fault: 'No', attorney: 'No', insurance: 'Yes', police_report: 'Yes',
+  source: 'Facebook', supplier_brand: 'CAC', brand: 'CAC',
+  sid: 'LOL', supplier_sid: 'LOL', ssid: 'MVA-CA',
+  optin_url: 'https://quiz.checkacase.com/s/v2', optinurl: 'https://quiz.checkacase.com/s/v2',
+  trustedform_url: 'https://cert.trustedform.com/1895fa40605aa17b06e36b639cb8cb7b3aba00',
+  jornaya_token: '123123698769',
+  user_agent: 'Mozilla/5.0 (Test) AppleWebKit/537.36',
+  utm_source: 'Facebook', utm_campaign: 'camp', utm_medium: 'med',
+  phone_verified: 'Exact Match', hlr_status: 'Exact Match', hlr_score: '95',
+  lead_id: '999', event_time: String(Math.floor(Date.now() / 1000)),
+};
+
+// Build a static test payload from the destination's payload template:
+// every {{token}} is replaced with a sensible static value so the user
+// can edit real values. Falls back to DEFAULT_TEST_PAYLOAD when no template.
+function buildTestPayloadFromTemplate(templateStr) {
+  try {
+    const obj = JSON.parse(templateStr || '{}');
+    if (!obj || typeof obj !== 'object' || Object.keys(obj).length === 0) {
+      return JSON.stringify(DEFAULT_TEST_PAYLOAD, null, 2);
+    }
+    const out = {};
+    for (const [k, v] of Object.entries(obj)) {
+      if (typeof v === 'string' && v.startsWith('{{') && v.endsWith('}}')) {
+        const token = v.slice(2, -2).split('|')[0].trim();
+        out[k] = TOKEN_STATIC_DEFAULTS[token] ?? DEFAULT_TEST_PAYLOAD[token] ?? DEFAULT_TEST_PAYLOAD[k] ?? 'test_value';
+      } else {
+        out[k] = v;
+      }
+    }
+    return JSON.stringify(out, null, 2);
+  } catch {
+    return JSON.stringify(DEFAULT_TEST_PAYLOAD, null, 2);
+  }
+}
+
 const HLR_TOKENS = ['phone_verified', 'hlr_status', 'hlr_score', 'country_code'];
 const FINAL_STATUSES = ['Sold', 'Unsold', 'Queued', 'Error'];
 const OPERATORS = [
@@ -108,7 +157,9 @@ const TRIGGER_OPTIONS = [
 ];
 
 const KIND_OPTIONS = [
-  { value: 'leadbyte', label: 'LeadByte' },
+  { value: 'leadbyte', label: 'Leadbyte' },
+  { value: 'bigquery', label: 'BigQuery' },
+  { value: 'data', label: 'Data' },
   { value: 'generic_http', label: 'Generic HTTP' },
 ];
 
@@ -192,7 +243,7 @@ export default function SettingsLeadByte() {
     setEditing({ ...conn, forwarding_mode: 'template', payload_template: payloadTemplate, kind: conn.kind || 'leadbyte', triggers: conn.triggers || '["on_received"]' });
     setHeaderRows(parseHeaderRows(conn.headers));
     setTestResult(null);
-    setTestPayloadStr(conn.test_payload_last_used || JSON.stringify(DEFAULT_TEST_PAYLOAD, null, 2));
+    setTestPayloadStr(conn.test_payload_last_used || buildTestPayloadFromTemplate(payloadTemplate));
     setTestLeadExpanded(false);
     setConnectorSubTab('connector');
   };
@@ -214,7 +265,7 @@ export default function SettingsLeadByte() {
     });
     setHeaderRows([{ key: 'X_KEY', value: '' }, { key: 'Content-Type', value: 'application/json' }]);
     setTestResult(null);
-    setTestPayloadStr(JSON.stringify(DEFAULT_TEST_PAYLOAD, null, 2));
+    setTestPayloadStr(buildTestPayloadFromTemplate(buildDefaultActualPayload(customFields)));
     setConnectorSubTab('connector');
   };
 
@@ -248,7 +299,7 @@ export default function SettingsLeadByte() {
     if (data?.error) {
       toast.error(data.error);
     } else {
-      toast.success('Test sent to LeadByte');
+      toast.success('Test lead sent');
     }
     setSendingTest(false);
   };
@@ -335,7 +386,7 @@ export default function SettingsLeadByte() {
           </div>
 
           <div className="flex gap-1 border-b border-border">
-            {[{ k: 'connector', l: 'Connector Config' }, { k: 'responses', l: 'Response Builder' }].map(({ k, l }) => (
+            {[{ k: 'connector', l: 'Destination Config' }, { k: 'responses', l: 'Response Builder' }].map(({ k, l }) => (
               <button key={k} onClick={() => setConnectorSubTab(k)}
                 className={`px-4 py-2 text-[13px] font-medium transition-colors border-b-2 -mb-px
                   ${connectorSubTab === k ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
@@ -351,7 +402,7 @@ export default function SettingsLeadByte() {
                   <div className="grid grid-cols-2 gap-3">
                     <div><Label className="text-[12px]">Name</Label><Input value={editing.api_name || ''} onChange={e => setEditing(p => ({ ...p, api_name: e.target.value }))} className="mt-1 bg-background" /></div>
                     <div>
-                      <Label className="text-[12px]">Kind</Label>
+                      <Label className="text-[12px]">Delivery Type</Label>
                       <SearchableSelect
                         value={editing.kind || 'leadbyte'}
                         onValueChange={v => setEditing(p => ({ ...p, kind: v }))}
@@ -384,40 +435,8 @@ export default function SettingsLeadByte() {
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label className="text-[12px]">Forwarding Mode</Label>
-                      <SearchableSelect
-                        value={editing.forwarding_mode || 'pass-through'}
-                        onValueChange={v => setEditing(p => ({ ...p, forwarding_mode: v }))}
-                        className="mt-1 bg-background"
-                        options={[
-                          { value: 'pass-through', label: 'Pass-through (forward as-is)' },
-                          { value: 'template', label: 'Template (token substitution)' },
-                        ]}
-                      />
-                      <p className="text-[10px] text-muted-foreground mt-1">
-                        The Actual LeadByte Payload below is always sent. Mode is kept for compatibility — Template (recommended) uses the editable payload; Pass-through is legacy.
-                      </p>
-                    </div>
-                    <div className="flex items-end">
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2"><Switch checked={editing.enabled} onCheckedChange={v => setEditing(p => ({ ...p, enabled: v }))} /><Label className="text-[12px]">Enabled</Label></div>
-                        <div className="flex items-center gap-2"><Switch checked={editing.is_default} onCheckedChange={v => setEditing(p => ({ ...p, is_default: v }))} /><Label className="text-[12px]">Default</Label></div>
-                      </div>
-                    </div>
-                  </div>
                 </CardContent>
               </Card>
-
-              <ConnectorFilterPanel
-                editing={editing}
-                onFieldChange={setF}
-                brandOptions={brandOptions}
-                supplierOptions={supplierOptions}
-                supplierTypeOptions={supplierTypeOptions}
-                customFields={customFields}
-              />
 
               <Card className="bg-card border-border">
                 <CardContent className="p-4 space-y-3">
@@ -436,6 +455,15 @@ export default function SettingsLeadByte() {
                   </div>
                 </CardContent>
               </Card>
+
+              <ConnectorFilterPanel
+                editing={editing}
+                onFieldChange={setF}
+                brandOptions={brandOptions}
+                supplierOptions={supplierOptions}
+                supplierTypeOptions={supplierTypeOptions}
+                customFields={customFields}
+              />
 
               <Card className="bg-card border-border">
                 <CardHeader className="pb-2"><CardTitle className="text-[13px]">Headers</CardTitle></CardHeader>
@@ -471,13 +499,13 @@ export default function SettingsLeadByte() {
                   <button className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-accent/30 transition-colors rounded-lg">
                     <div className="flex items-center gap-2">
                       {testLeadExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
-                      <span className="text-[13px] font-medium text-foreground">Send Test to LeadByte</span>
+                      <span className="text-[13px] font-medium text-foreground">Send Test Lead</span>
                     </div>
                   </button>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="px-4 pb-4 pt-2 space-y-4">
                   <div className="rounded-md border border-primary/30 bg-primary/5 p-2.5 text-[11px] text-muted-foreground">
-                    <span className="text-foreground font-semibold">Test Payload = sample INBOUND lead.</span> This is different from the <span className="text-foreground font-semibold">Actual LeadByte Payload</span> (the OUTBOUND definition sent to LeadByte). The test resolves the Actual Payload's <code className="bg-muted px-1 rounded text-primary">{'{{token}}'}</code> placeholders against this sample inbound lead, then posts the result directly to <code className="bg-muted px-1 rounded text-primary font-mono">{editing.target_url}</code>. No HLR is run and no gateway lead is created.
+                    <span className="text-foreground font-semibold">Test Payload = sample INBOUND lead.</span> This is different from the <span className="text-foreground font-semibold">Payload Template</span> (the OUTBOUND definition). The test resolves the Payload's <code className="bg-muted px-1 rounded text-primary">{'{{token}}'}</code> placeholders against this sample inbound lead, then posts the result directly to <code className="bg-muted px-1 rounded text-primary font-mono">{editing.target_url}</code>. No HLR is run and no gateway lead is created.
                   </div>
 
                   <div>
@@ -489,18 +517,18 @@ export default function SettingsLeadByte() {
                     />
                     <div className="flex items-center gap-2 mt-2">
                       <Button size="sm" variant="outline" onClick={() => {
-                        const defaultStr = JSON.stringify(DEFAULT_TEST_PAYLOAD, null, 2);
+                        const defaultStr = buildTestPayloadFromTemplate(editing.payload_template);
                         setTestPayloadStr(defaultStr);
                         saveTestPayload(defaultStr);
                       }}>
-                        Reset to Default
+                        Reset from Payload
                       </Button>
                     </div>
                   </div>
 
                   <Button onClick={sendTestLead} disabled={sendingTest || !editing.id} className="gap-1.5">
                     {sendingTest ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                    Send Test to LeadByte
+                    Send Test Lead
                   </Button>
                   {!editing.id && <p className="text-[11px] text-muted-foreground">Save the connector first to enable testing.</p>}
 
@@ -562,7 +590,13 @@ export default function SettingsLeadByte() {
             <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" /> Add Destination</Button>
           </div>
           <div className="space-y-4">
-            {connectors.map(conn => {
+            {[...connectors].sort((a, b) => {
+              const aLb = (a.kind || 'leadbyte') === 'leadbyte';
+              const bLb = (b.kind || 'leadbyte') === 'leadbyte';
+              if (aLb && !bLb) return -1;
+              if (!aLb && bLb) return 1;
+              return 0;
+            }).map(conn => {
               const triggers = parseJsonArray(conn.triggers);
               const brands = parseJsonArray(conn.filter_brands);
               const conditions = parseJsonArray(conn.filter_conditions);
@@ -573,7 +607,7 @@ export default function SettingsLeadByte() {
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="text-[14px] font-medium text-foreground">{conn.api_name}</span>
-                        <Badge variant="outline" className="text-[10px]">{KIND_OPTIONS.find(k => k.value === (conn.kind || 'leadbyte'))?.label || 'LeadByte'}</Badge>
+                        <Badge variant="outline" className="text-[10px]">{KIND_OPTIONS.find(k => k.value === (conn.kind || 'leadbyte'))?.label || 'Leadbyte'}</Badge>
                       </div>
                       <div className="font-mono text-[11px] text-muted-foreground mt-1 truncate max-w-[400px]">{conn.target_url}</div>
                       <div className="flex flex-wrap gap-1.5 mt-2">

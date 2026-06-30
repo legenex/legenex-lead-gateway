@@ -880,9 +880,51 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── b. FIRE ON RECEIVED (fire-and-forget) ────────────────────────────
+    // ── ROUTE: lead_route (case-insensitive contains) ────────────────────
+    const leadRouteRaw = String(leadPayload.lead_route || 'standard').trim().toLowerCase();
+    const routeIs = {
+      direct: leadRouteRaw.includes('direct'),
+      event: leadRouteRaw.includes('event'),
+      queue: leadRouteRaw.includes('queue'),
+      test: leadRouteRaw.includes('test'),
+    };
+    routeIs.standard = !routeIs.direct && !routeIs.event && !routeIs.queue && !routeIs.test;
+
+    // TEST route: save only — no processing, no triggers
+    if (routeIs.test) {
+      const testResponse = { Response: 'Queued', reason: 'Test route — lead saved for testing only' };
+      await db.entities.Lead.update(leadId, {
+        final_status: 'Queued',
+        queue_reason: 'Test route — no downstream processing',
+        processed_at: new Date().toISOString(),
+        process_time_ms: Date.now() - startTime,
+        response_returned: JSON.stringify(testResponse),
+      });
+      return Response.json(testResponse, { status: 200 });
+    }
+
+    // QUEUE route: hold for manual processing — fire on_queued, skip LeadByte
+    if (routeIs.queue) {
+      fireConnectors(db, apiConnectors, 'on_queued', leadPayload, leadId, supplierAttribution, supplierRecord);
+      if (!routeIs.event) fireDeliveries(db, allDestinations, 'on_queued', leadPayload, leadId, supplierAttribution, supplierRecord);
+      await evaluateNotifications(db, ['lead_queued'], { id: leadId, queue_reason: 'Queue route — held for manual processing' }, supplierAttribution, { queue_reason: 'Queue route' });
+      const queueResponse = { Response: 'Queued', reason: 'Queue route — held for manual processing' };
+      await db.entities.Lead.update(leadId, {
+        final_status: 'Queued',
+        queue_reason: 'Queue route — held for manual processing',
+        processed_at: new Date().toISOString(),
+        process_time_ms: Date.now() - startTime,
+        response_returned: JSON.stringify(queueResponse),
+      });
+      return Response.json(queueResponse, { status: 200 });
+    }
+
+    // ── b. FIRE ON RECEIVED (route-aware, fire-and-forget) ─────────────
     fireConnectors(db, apiConnectors, 'on_received', leadPayload, leadId, supplierAttribution, supplierRecord);
-    fireDeliveries(db, allDestinations, 'on_received', leadPayload, leadId, supplierAttribution, supplierRecord);
+    // Event route: conversion events only — skip deliveries
+    if (!routeIs.event) {
+      fireDeliveries(db, allDestinations, 'on_received', leadPayload, leadId, supplierAttribution, supplierRecord);
+    }
 
     // ── c. HLR LOOKUP ────────────────────────────────────────────────────
     let hlrResult = null;
@@ -1001,7 +1043,24 @@ Deno.serve(async (req) => {
 
     await db.entities.Lead.update(leadId, { trustedform_valid: tfValid });
 
-    // ── e. FORWARD TO LEADBYTE ───────────────────────────────────────────
+    // ── e. ROUTE: direct / event bypass LeadByte ────────────────────────
+    if (!routeIs.standard) {
+      fireConnectors(db, apiConnectors, 'on_sold', leadPayload, leadId, supplierAttribution, supplierRecord);
+      if (!routeIs.event) {
+        fireDeliveries(db, allDestinations, 'on_sold', leadPayload, leadId, supplierAttribution, supplierRecord);
+      }
+      const soldResponse = { Response: 'Sold' };
+      await db.entities.Lead.update(leadId, {
+        final_status: 'Sold',
+        revenue: 0,
+        processed_at: new Date().toISOString(),
+        process_time_ms: Date.now() - startTime,
+        response_returned: JSON.stringify(soldResponse),
+      });
+      return Response.json(soldResponse, { status: 200 });
+    }
+
+    // ── e. FORWARD TO LEADBYTE (standard route) ────────────────────────
     if (!leadByteConnector) {
       const noConnResponse = { Response: 'Error', reason: 'No active LeadByte connector configured' };
       await db.entities.Lead.update(leadId, {
