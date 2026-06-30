@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Copy, RefreshCw, Trash2, ShieldCheck, Terminal } from 'lucide-react';
+import { Plus, Copy, RefreshCw, Trash2, ShieldCheck, Terminal, Pencil, UserPlus } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 
@@ -49,9 +49,12 @@ function KeyRevealBox({ fullKey, onClose }) {
 export default function SettingsApiKeys() {
   const qc = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState({ name: '', type: 'supplier', supplier_id: '', vertical: '' });
+  const [form, setForm] = useState({ name: '', type: 'supplier', supplier_id: '', vertical: '', active: true });
+  const [editingKeyId, setEditingKeyId] = useState(null);
   const [revealKey, setRevealKey] = useState(null); // full key string to show once
   const [regenReveal, setRegenReveal] = useState(null); // { key, id }
+  const [supplierCreateOpen, setSupplierCreateOpen] = useState(false);
+  const [supplierForm, setSupplierForm] = useState({ name: '', supplier_type: 'External', sid: '', vertical: '', active: true });
 
   const { data: apiKeys = [] } = useQuery({
     queryKey: ['api-keys'],
@@ -78,9 +81,54 @@ export default function SettingsApiKeys() {
   const endpointUrl = `${baseUrl}/functions/leads`;
 
   const openCreate = () => {
-    setForm({ name: '', type: 'supplier', supplier_id: '', vertical: '' });
+    setForm({ name: '', type: 'supplier', supplier_id: '', vertical: '', active: true });
+    setEditingKeyId(null);
     setRevealKey(null);
     setModalOpen(true);
+  };
+
+  const openEdit = (k) => {
+    setForm({
+      name: k.name || '',
+      type: k.type || 'supplier',
+      supplier_id: k.supplier_id || '',
+      vertical: k.vertical || '',
+      active: k.active ?? true,
+    });
+    setEditingKeyId(k.id);
+    setRevealKey(null);
+    setModalOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    const supplier = form.supplier_id ? suppliers.find(s => s.id === form.supplier_id) : null;
+    await base44.entities.ApiKey.update(editingKeyId, {
+      name: form.name,
+      type: form.type,
+      supplier_id: form.type === 'master' ? '' : (supplier?.id || ''),
+      supplier_name: form.type === 'master' ? 'Master' : (supplier?.name || ''),
+      vertical: form.vertical,
+      active: form.active,
+    });
+    qc.invalidateQueries({ queryKey: ['api-keys'] });
+    toast.success('Key updated');
+    setEditingKeyId(null);
+    setModalOpen(false);
+  };
+
+  const handleCreateSupplier = async () => {
+    const created = await base44.entities.Supplier.create({
+      name: supplierForm.name,
+      sid: supplierForm.sid,
+      supplier_type: supplierForm.supplier_type,
+      vertical: supplierForm.vertical,
+      active: supplierForm.active,
+    });
+    await qc.invalidateQueries({ queryKey: ['suppliers'] });
+    setForm(p => ({ ...p, supplier_id: created.id }));
+    setSupplierCreateOpen(false);
+    setSupplierForm({ name: '', supplier_type: 'External', sid: '', vertical: '', active: true });
+    toast.success('Supplier created — linked to key');
   };
 
   const handleCreate = async () => {
@@ -239,6 +287,10 @@ export default function SettingsApiKeys() {
                       onClick={() => handleRegenerate(k)}>
                       <RefreshCw className="w-3 h-3" />
                     </Button>
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]" title="Edit"
+                      onClick={() => openEdit(k)}>
+                      <Pencil className="w-3 h-3" />
+                    </Button>
                     <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] text-muted-foreground"
                       onClick={() => toggleActive(k)}>
                       {k.active ? 'Deactivate' : 'Activate'}
@@ -256,10 +308,10 @@ export default function SettingsApiKeys() {
       </div>
 
       {/* Create Key Modal */}
-      <Dialog open={modalOpen} onOpenChange={(v) => { if (!v && !revealKey) setModalOpen(false); }}>
+      <Dialog open={modalOpen} onOpenChange={(v) => { if (!v && !revealKey) { setModalOpen(false); setEditingKeyId(null); } }}>
         <DialogContent className="bg-popover border-border max-w-[480px]">
           <DialogHeader>
-            <DialogTitle>{revealKey ? 'Key Created' : 'Create API Key'}</DialogTitle>
+            <DialogTitle>{revealKey ? 'Key Created' : editingKeyId ? 'Edit API Key' : 'Create API Key'}</DialogTitle>
           </DialogHeader>
 
           {revealKey ? (
@@ -285,7 +337,13 @@ export default function SettingsApiKeys() {
                 </div>
                 {form.type === 'supplier' && (
                   <div>
-                    <Label className="text-[12px]">Linked Supplier</Label>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[12px]">Linked Supplier</Label>
+                      <Button type="button" size="sm" variant="ghost" className="h-6 px-2 text-[11px] gap-1 text-primary"
+                        onClick={() => setSupplierCreateOpen(true)}>
+                        <UserPlus className="w-3 h-3" /> Create New Supplier
+                      </Button>
+                    </div>
                     <SearchableSelect
                       value={form.supplier_id}
                       onValueChange={v => setForm(p => ({ ...p, supplier_id: v }))}
@@ -305,12 +363,24 @@ export default function SettingsApiKeys() {
                     options={[{ value: '', label: 'Any vertical' }, ...verticalOptions]}
                   />
                 </div>
+                {editingKeyId && (
+                  <div className="flex items-center gap-2">
+                    <Switch checked={form.active} onCheckedChange={v => setForm(p => ({ ...p, active: v }))} />
+                    <Label className="text-[12px]">Active</Label>
+                  </div>
+                )}
               </div>
               <DialogFooter>
-                <Button variant="ghost" onClick={() => setModalOpen(false)}>Cancel</Button>
-                <Button onClick={handleCreate} disabled={!form.name || (form.type === 'supplier' && !form.supplier_id)}>
-                  Generate Key
-                </Button>
+                <Button variant="ghost" onClick={() => { setModalOpen(false); setEditingKeyId(null); }}>Cancel</Button>
+                {editingKeyId ? (
+                  <Button onClick={handleSaveEdit} disabled={!form.name || (form.type === 'supplier' && !form.supplier_id)}>
+                    Save Changes
+                  </Button>
+                ) : (
+                  <Button onClick={handleCreate} disabled={!form.name || (form.type === 'supplier' && !form.supplier_id)}>
+                    Generate Key
+                  </Button>
+                )}
               </DialogFooter>
             </>
           )}
@@ -324,6 +394,43 @@ export default function SettingsApiKeys() {
           {regenReveal && (
             <KeyRevealBox fullKey={regenReveal.key} onClose={() => setRegenReveal(null)} />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Nested Create New Supplier modal */}
+      <Dialog open={supplierCreateOpen} onOpenChange={setSupplierCreateOpen}>
+        <DialogContent className="bg-popover border-border max-w-[460px]">
+          <DialogHeader><DialogTitle>Create New Supplier</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div><Label className="text-[12px]">Name *</Label><Input value={supplierForm.name} onChange={e => setSupplierForm(p => ({ ...p, name: e.target.value }))} className="mt-1 bg-background" /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-[12px]">Supplier Type *</Label>
+                <SearchableSelect
+                  value={supplierForm.supplier_type}
+                  onValueChange={v => setSupplierForm(p => ({ ...p, supplier_type: v }))}
+                  className="mt-1 bg-background"
+                  options={[{ value: 'Internal', label: 'Internal' }, { value: 'External', label: 'External' }, { value: 'Calls', label: 'Calls' }]}
+                />
+              </div>
+              <div><Label className="text-[12px]">SID</Label><Input value={supplierForm.sid} onChange={e => setSupplierForm(p => ({ ...p, sid: e.target.value }))} className="mt-1 bg-background" /></div>
+            </div>
+            <div>
+              <Label className="text-[12px]">Vertical (optional)</Label>
+              <SearchableSelect
+                value={supplierForm.vertical}
+                onValueChange={v => setSupplierForm(p => ({ ...p, vertical: v }))}
+                className="mt-1 bg-background"
+                placeholder="Any vertical"
+                options={[{ value: '', label: 'Any vertical' }, ...verticalOptions]}
+              />
+            </div>
+            <div className="flex items-center gap-2"><Switch checked={supplierForm.active} onCheckedChange={v => setSupplierForm(p => ({ ...p, active: v }))} /><Label className="text-[12px]">Active</Label></div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setSupplierCreateOpen(false)}>Cancel</Button>
+            <Button onClick={handleCreateSupplier} disabled={!supplierForm.name || !supplierForm.supplier_type}>Create Supplier</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

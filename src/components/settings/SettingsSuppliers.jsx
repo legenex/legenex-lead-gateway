@@ -51,6 +51,8 @@ export default function SettingsSuppliers() {
   const [showKeys, setShowKeys] = useState({});
   const [baseUrl, setBaseUrl] = useState('');
   const [baseUrlSaved, setBaseUrlSaved] = useState(false);
+  const [apiKeyCreateOpen, setApiKeyCreateOpen] = useState(false);
+  const [apiKeyForm, setApiKeyForm] = useState({ name: '', type: 'supplier', supplier_id: '', vertical: '', active: true });
 
   const { data: suppliers = [] } = useQuery({
     queryKey: ['suppliers'],
@@ -246,6 +248,26 @@ export default function SettingsSuppliers() {
     if (k) await base44.entities.ApiKey.update(k.id, { active: !supplier.active });
     qc.invalidateQueries({ queryKey: ['suppliers'] });
     qc.invalidateQueries({ queryKey: ['api-keys'] });
+  };
+
+  const handleCreateApiKey = async () => {
+    const supplier = apiKeyForm.supplier_id ? suppliers.find(s => s.id === apiKeyForm.supplier_id) : null;
+    const key = generateKey(supplier?.supplier_type || '');
+    await base44.entities.ApiKey.create({
+      name: apiKeyForm.name,
+      type: apiKeyForm.type,
+      supplier_id: apiKeyForm.type === 'master' ? '' : (supplier?.id || ''),
+      supplier_name: apiKeyForm.type === 'master' ? 'Master' : (supplier?.name || ''),
+      vertical: apiKeyForm.vertical,
+      key,
+      key_prefix: key.substring(0, 16),
+      active: apiKeyForm.active,
+      request_count: 0,
+    });
+    qc.invalidateQueries({ queryKey: ['api-keys'] });
+    setApiKeyCreateOpen(false);
+    setApiKeyForm({ name: '', type: 'supplier', supplier_id: '', vertical: '', active: true });
+    toast.success('API key created');
   };
 
   return (
@@ -452,6 +474,10 @@ export default function SettingsSuppliers() {
                 )}
                 <div><Label className="text-[12px]">Landing Page URL</Label><Input value={form.landing_page_url} onChange={e => setForm(p => ({ ...p, landing_page_url: e.target.value }))} className="mt-1 bg-background font-mono text-[12px]" /></div>
                 <div className="flex items-center gap-2"><Switch checked={form.active} onCheckedChange={v => setForm(p => ({ ...p, active: v }))} /><Label className="text-[12px]">Active</Label></div>
+                <Button type="button" variant="outline" size="sm" className="w-full gap-1.5"
+                  onClick={() => { setApiKeyForm({ name: form.name ? `${form.name} Key` : '', type: 'supplier', supplier_id: editingSupplierId || '', vertical: form.vertical || '', active: true }); setApiKeyCreateOpen(true); }}>
+                  <Plus className="w-3.5 h-3.5" /> Create New API Key
+                </Button>
               </div>
               <DialogFooter>
                 <Button variant="ghost" onClick={() => setSupplierModal(false)}>Cancel</Button>
@@ -459,6 +485,52 @@ export default function SettingsSuppliers() {
               </DialogFooter>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Nested Create New API Key modal */}
+      <Dialog open={apiKeyCreateOpen} onOpenChange={setApiKeyCreateOpen}>
+        <DialogContent className="bg-popover border-border max-w-[460px]">
+          <DialogHeader><DialogTitle>Create New API Key</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div><Label className="text-[12px]">Name / Label *</Label><Input value={apiKeyForm.name} onChange={e => setApiKeyForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Acme Corp Key" className="mt-1 bg-background" /></div>
+            <div>
+              <Label className="text-[12px]">Type</Label>
+              <SearchableSelect
+                value={apiKeyForm.type}
+                onValueChange={v => setApiKeyForm(p => ({ ...p, type: v, supplier_id: '' }))}
+                className="mt-1 bg-background"
+                options={[{ value: 'master', label: 'Master — no linked supplier' }, { value: 'supplier', label: 'Supplier — attributed to a supplier' }]}
+              />
+            </div>
+            {apiKeyForm.type === 'supplier' && (
+              <div>
+                <Label className="text-[12px]">Linked Supplier</Label>
+                <SearchableSelect
+                  value={apiKeyForm.supplier_id}
+                  onValueChange={v => setApiKeyForm(p => ({ ...p, supplier_id: v }))}
+                  className="mt-1 bg-background"
+                  placeholder="Select supplier…"
+                  options={suppliers.map(s => ({ value: s.id, label: s.name }))}
+                />
+              </div>
+            )}
+            <div>
+              <Label className="text-[12px]">Vertical (optional)</Label>
+              <SearchableSelect
+                value={apiKeyForm.vertical}
+                onValueChange={v => setApiKeyForm(p => ({ ...p, vertical: v }))}
+                className="mt-1 bg-background"
+                placeholder="Any vertical"
+                options={[{ value: '', label: 'Any vertical' }, ...verticalOptions]}
+              />
+            </div>
+            <div className="flex items-center gap-2"><Switch checked={apiKeyForm.active} onCheckedChange={v => setApiKeyForm(p => ({ ...p, active: v }))} /><Label className="text-[12px]">Active</Label></div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setApiKeyCreateOpen(false)}>Cancel</Button>
+            <Button onClick={handleCreateApiKey} disabled={!apiKeyForm.name || (apiKeyForm.type === 'supplier' && !apiKeyForm.supplier_id)}>Generate Key</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
