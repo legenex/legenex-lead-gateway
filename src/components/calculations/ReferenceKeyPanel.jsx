@@ -57,7 +57,7 @@ export default function ReferenceKeyPanel() {
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2.5">
       <div className="relative">
         <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
         <Input
@@ -69,32 +69,37 @@ export default function ReferenceKeyPanel() {
       </div>
 
       {filtered.length === 0 && (
-        <div className="text-[11px] text-muted-foreground">No matching reference keys</div>
+        <div className="text-[11px] text-muted-foreground py-2">No matching reference keys</div>
       )}
 
-      {filtered.map(it => (
-        <div key={it.id}>
-          <div className="flex items-center gap-2 mb-1.5">
-            <code className="text-[11px] font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded">
-              {'{{' + it.field_name + '}}'}
-            </code>
-            <span className="text-[11px] font-medium text-foreground">{it.label}</span>
-            {it.note && <span className="text-[10px] text-muted-foreground">· {it.note}</span>}
+      <div className="space-y-0">
+        {filtered.map(it => (
+          <div
+            key={it.id}
+            className="flex gap-2.5 items-start py-1.5 border-b border-border/40 last:border-0"
+          >
+            <div className="w-[34%] shrink-0 pt-0.5">
+              <div className="text-[12px] font-semibold text-foreground leading-tight">{it.label}</div>
+              <code className="text-[10px] font-mono text-primary/80 break-all">{it.field_name}</code>
+              {it.note && (
+                <div className="text-[9px] text-muted-foreground leading-tight mt-0.5">{it.note}</div>
+              )}
+            </div>
+            <div className="flex-1 flex flex-wrap gap-1 min-w-0">
+              {it.values.map((v, i) => (
+                <code
+                  key={i}
+                  className="text-[10px] font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded cursor-pointer hover:bg-primary/20"
+                  onClick={() => copy(v)}
+                  title="Click to copy"
+                >
+                  {v}
+                </code>
+              ))}
+            </div>
           </div>
-          <div className="flex flex-wrap gap-1.5">
-            {it.values.map((v, i) => (
-              <code
-                key={i}
-                className="text-[11px] font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded cursor-pointer hover:bg-primary/20"
-                onClick={() => copy(v)}
-                title="Click to copy"
-              >
-                {v}
-              </code>
-            ))}
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
