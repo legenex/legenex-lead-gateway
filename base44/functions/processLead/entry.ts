@@ -1290,6 +1290,37 @@ Deno.serve(async (req) => {
       return Response.json(noConnResponse, { status: 200 });
     }
 
+    // ── GATE: LeadByte connector triggers ─────────────────────────────
+    // Only forward to LeadByte if the lead's effective trigger (derived from
+    // lead_status) matches the default connector's triggers. Empty triggers =
+    // fire on every lead. A pre-classified non-Qualified lead (e.g. Disqualified)
+    // is never sent to LeadByte — it fires the matching trigger instead.
+    {
+      const lbTriggers = parseJsonArray(leadByteConnector.triggers);
+      const effStatus = String(enrichedData.lead_status || leadPayload.lead_status || '').trim();
+      const effTrigger = effStatus ? triggerKeyForStatus(effStatus) : 'on_received';
+      const allowLeadByte = lbTriggers.length === 0 || lbTriggers.includes(effTrigger);
+      if (!allowLeadByte) {
+        const skipResponse = { Response: 'Unsold', reason: `Lead status "${effStatus}" not eligible for LeadByte` };
+        if (effTrigger !== 'on_received') {
+          fireConnectors(db, apiConnectors, effTrigger, enrichedData, leadId, supplierAttribution, supplierRecord);
+          if (!routeIs.event) fireDeliveries(db, allDestinations, effTrigger, enrichedData, leadId, supplierAttribution, supplierRecord);
+        }
+        const finalForStatus = {
+          Disqualified: 'Disqualified', Sold: 'Sold', Unsold: 'Unsold',
+          Rejected: 'Unsold', Duplicates: 'Duplicate', Queued: 'Queued',
+        }[effStatus] || 'Unsold';
+        await db.entities.Lead.update(leadId, {
+          final_status: finalForStatus,
+          queue_reason: finalForStatus === 'Queued' ? skipResponse.reason : '',
+          processed_at: new Date().toISOString(),
+          process_time_ms: Date.now() - startTime,
+          response_returned: JSON.stringify(skipResponse),
+        });
+        return Response.json(skipResponse, { status: 200 });
+      }
+    }
+
     // Check LeadByte connector filters — route to DQ destinations instead of dropping
     if (!connectorMatchesFilters(leadByteConnector, enrichedData, supplierAttribution, supplierRecord) ||
         !connectorMatchesConditions(leadByteConnector, enrichedData)) {
