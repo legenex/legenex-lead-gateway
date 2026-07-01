@@ -389,7 +389,7 @@ async function sendCapiEvent(conn, leadData, leadId, eventName, trigger) {
     return {
       connector: conn.name, event_name: eventName, pixel,
       http_status: null, fbtrace_id: '', success: false,
-      error: `Template resolution failed: ${err.message}`, value: '',
+      error: `Template resolution failed: ${err.message}`, value: '', payload: null,
     };
   }
 
@@ -441,12 +441,13 @@ async function sendCapiEvent(conn, leadData, leadId, eventName, trigger) {
       connector: conn.name, event_name: eventName, pixel,
       http_status: resp.status, fbtrace_id: fbResult.fbtrace_id || '',
       success: fbOk, value: sentValue, fb_response: fbResult, error: errMsg,
+      payload: body || null,
     };
   } catch (err) {
     return {
       connector: conn.name, event_name: eventName, pixel,
       http_status: null, fbtrace_id: '', success: false, error: err.message,
-      value: body?.data?.[0]?.custom_data?.value ?? '',
+      value: body?.data?.[0]?.custom_data?.value ?? '', payload: body || null,
     };
   }
 }
@@ -702,8 +703,8 @@ async function appendCapiLog(db, leadId, result) {
       connector: result.connector, event_name: result.event_name, pixel: result.pixel,
       http_status: result.http_status, fbtrace_id: result.fbtrace_id,
       value: result.value ?? '', events_received: result.fb_response?.events_received,
-      fb_response: result.fb_response, success: !!result.success, error: result.error || '',
-      timestamp: new Date().toISOString(),
+      fb_response: result.fb_response, payload: result.payload || null,
+      success: !!result.success, error: result.error || '', timestamp: new Date().toISOString(),
     });
     await db.entities.Lead.update(leadId, { capi_log: JSON.stringify(log) });
   } catch {}

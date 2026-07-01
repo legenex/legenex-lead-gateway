@@ -57,6 +57,12 @@ function CapiEntry({ e }) {
           {e.fbtrace_id && (
             <div className="text-[10px] text-muted-foreground">fbtrace_id: <span className="font-mono text-foreground">{e.fbtrace_id}</span></div>
           )}
+          {e.payload && (
+            <div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Outgoing Payload (sent to Facebook)</div>
+              <pre className="bg-background border border-border rounded-md p-2 text-[11px] font-mono text-foreground overflow-x-auto whitespace-pre-wrap break-all">{JSON.stringify(e.payload, null, 2)}</pre>
+            </div>
+          )}
           <div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Facebook Response</div>
             <pre className="bg-background border border-border rounded-md p-2 text-[11px] font-mono text-foreground overflow-x-auto whitespace-pre-wrap break-all">
