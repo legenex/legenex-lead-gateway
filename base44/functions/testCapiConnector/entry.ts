@@ -29,16 +29,15 @@ const DEFAULT_CAPI_TEMPLATE = JSON.stringify({
       external_id: "{{lead_id}}"
     },
     custom_data: {
-      content_name: "Check A Case Lead",
-      content_category: "Lead Generation",
-      vertical: "Legal",
-      brand: "Check A Case",
-      funnel_name: "Check A Case Survey",
-      qualification_status: "Qualified Lead",
-      event_category: "Lead",
-      lead_event_type: "Lead",
-      value: "{{conv_value}}",
-      currency: "USD"
+      content_name: "{{content_name}}",
+      content_category: "{{content_category}}",
+      vertical: "{{vertical}}",
+      brand: "{{brand}}",
+      funnel_name: "{{funnel_name}}",
+      qualification_status: "{{qualification_status}}",
+      event_category: "{{event_category}}",
+      lead_event_type: "{{lead_event_type}}",
+      value: "{{value}}"
     }
   }]
 }, null, 2);
@@ -264,7 +263,25 @@ Deno.serve(async (req) => {
   let requestBody;
   try {
     const ctx = { ...DEFAULT_TEST_LEAD_DATA, lead_event: eventName };
-    const resolved = await resolveTemplate(templateStr, ctx, 'test-lead-id');
+    // Resolve per-trigger custom_data overrides and expose them as tokens
+    // (e.g. {{content_name}}, {{value}}) so the template pulls them dynamically.
+    const ctxWithOverrides = { ...ctx };
+    if (conn.trigger_data_overrides) {
+      try {
+        const overrides = JSON.parse(conn.trigger_data_overrides);
+        const ov = overrides[trigger || 'on_received'] || overrides.on_received;
+        if (ov && typeof ov === 'object') {
+          for (const k of Object.keys(ov)) {
+            if (!ov[k]) continue;
+            const resolved = await resolveTemplate(String(ov[k]), ctx, 'test-lead-id');
+            const trimmed = resolved.trim();
+            try { ctxWithOverrides[k] = JSON.parse(trimmed); }
+            catch { ctxWithOverrides[k] = resolved; }
+          }
+        }
+      } catch {}
+    }
+    const resolved = await resolveTemplate(templateStr, ctxWithOverrides, 'test-lead-id');
     requestBody = JSON.parse(resolved);
   } catch (err) {
     return Response.json({ error: `Template resolution failed: ${err.message}` }, { status: 500 });

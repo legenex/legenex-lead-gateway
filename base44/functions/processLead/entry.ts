@@ -172,16 +172,15 @@ const DEFAULT_CAPI_TEMPLATE = JSON.stringify({
       external_id: "{{lead_id}}"
     },
     custom_data: {
-      content_name: "Check A Case Lead",
-      content_category: "Lead Generation",
-      vertical: "Legal",
-      brand: "Check A Case",
-      funnel_name: "Check A Case Survey",
-      qualification_status: "Qualified Lead",
-      event_category: "Lead",
-      lead_event_type: "Lead",
-      value: "{{conv_value}}",
-      currency: "USD"
+      content_name: "{{content_name}}",
+      content_category: "{{content_category}}",
+      vertical: "{{vertical}}",
+      brand: "{{brand}}",
+      funnel_name: "{{funnel_name}}",
+      qualification_status: "{{qualification_status}}",
+      event_category: "{{event_category}}",
+      lead_event_type: "{{lead_event_type}}",
+      value: "{{value}}"
     }
   }]
 }, null, 2);
@@ -362,9 +361,29 @@ async function sendCapiEvent(conn, leadData, leadId, eventName, trigger) {
     : DEFAULT_CAPI_TEMPLATE;
 
   const ctx = { ...leadData, lead_event: eventName };
+
+  // Resolve per-trigger custom_data overrides first and expose them as tokens
+  // (e.g. {{content_name}}, {{value}}) so the template pulls them dynamically.
+  const ctxWithOverrides = { ...ctx };
+  if (trigger && conn.trigger_data_overrides) {
+    try {
+      const overrides = JSON.parse(conn.trigger_data_overrides);
+      const ov = overrides[trigger];
+      if (ov && typeof ov === 'object') {
+        for (const k of Object.keys(ov)) {
+          if (!ov[k]) continue;
+          const resolved = await resolveTemplate(String(ov[k]), ctx, leadId);
+          const trimmed = resolved.trim();
+          try { ctxWithOverrides[k] = JSON.parse(trimmed); }
+          catch { ctxWithOverrides[k] = resolved; }
+        }
+      }
+    } catch {}
+  }
+
   let body;
   try {
-    const resolved = await resolveTemplate(templateStr, ctx, leadId);
+    const resolved = await resolveTemplate(templateStr, ctxWithOverrides, leadId);
     body = JSON.parse(resolved);
   } catch (err) {
     return {

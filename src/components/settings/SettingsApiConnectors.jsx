@@ -71,16 +71,15 @@ const DEFAULT_CAPI_TEMPLATE = JSON.stringify({
       external_id: "{{lead_id}}"
     },
     custom_data: {
-      content_name: "Check A Case Lead",
-      content_category: "Lead Generation",
-      vertical: "Legal",
-      brand: "Check A Case",
-      funnel_name: "Check A Case Survey",
-      qualification_status: "Qualified Lead",
-      event_category: "Lead",
-      lead_event_type: "Lead",
-      value: "{{conv_value}}",
-      currency: "USD"
+      content_name: "{{content_name}}",
+      content_category: "{{content_category}}",
+      vertical: "{{vertical}}",
+      brand: "{{brand}}",
+      funnel_name: "{{funnel_name}}",
+      qualification_status: "{{qualification_status}}",
+      event_category: "{{event_category}}",
+      lead_event_type: "{{lead_event_type}}",
+      value: "{{value}}"
     }
   }]
 }, null, 2);
@@ -262,6 +261,9 @@ export default function SettingsApiConnectors() {
 
   const saveConnector = async () => {
     const data = { ...editing, headers: JSON.stringify(headerRows) };
+    if (editing.kind === 'facebook_capi') {
+      data.payload_template = testPayloadStr;
+    }
     if (editing.id) {
       await base44.entities.ApiConnector.update(editing.id, data);
     } else {
@@ -300,7 +302,7 @@ export default function SettingsApiConnectors() {
     // Pass the raw template string — the backend resolves tokens then parses JSON.
     // Pre-parsing here fails on unquoted tokens like "value": {{conv_value}}.
     try {
-      const resp = await testCapiConnector({ connector_id: editing.id, test_payload: testPayloadStr, trigger: testTrigger });
+      const resp = await testCapiConnector({ connector_id: editing.id, test_payload: testPayloadStr });
       setTestResult(resp.data);
       if (resp.data?.error) toast.error(resp.data.error);
       else toast.success('Test event sent');
@@ -420,7 +422,7 @@ export default function SettingsApiConnectors() {
           <Card className="bg-card border-border">
             <CardContent className="p-4 space-y-3">
               <div className="text-[13px] font-semibold text-foreground">Per-Trigger Custom Data</div>
-              <p className="text-[11px] text-muted-foreground">These values <span className="text-foreground font-medium">override the template's custom_data</span> when that trigger fires — so each trigger (Disqualified, Qualified, Sold…) can send different values. Leave a field blank to fall back to the template. Use the test below (pick a trigger) to preview the resolved payload. Values support {'{{tokens}}'} like {'{{conv_value}}'} or {'{{revenue}}'}.</p>
+              <p className="text-[11px] text-muted-foreground">Each value here becomes a token in the template below — Content Name is <code className="text-primary">{'{{content_name}}'}</code>, Value is <code className="text-primary">{'{{value}}'}</code>, etc. The template pulls the matching value for whichever trigger fires, so each trigger can send different values. To use a static value instead, replace the token in the template with literal text. Values support {'{{conv_value}}'}, {'{{revenue}}'} and any lead field token.</p>
               <TriggerDataOverrides
                 value={editing.trigger_data_overrides || '{}'}
                 onChange={v => setF('trigger_data_overrides', v)}
@@ -472,18 +474,10 @@ export default function SettingsApiConnectors() {
                     </CardContent>
                   </Card>
                 </div>
-                <div className="flex items-center gap-3 flex-wrap">
-                  <SearchableSelect
-                    value={testTrigger}
-                    onValueChange={setTestTrigger}
-                    className="w-[180px] bg-background"
-                    options={triggerOptions.filter(t => parseJsonArray(editing.triggers).includes(t.value))}
-                  />
-                  <Button onClick={sendTestEvent} disabled={sendingTest || !editing.id} className="gap-1.5">
-                    {sendingTest ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                    Send Test Event {editing.fb_test_event_code ? '(uses test code)' : ''}
-                  </Button>
-                </div>
+                <Button onClick={sendTestEvent} disabled={sendingTest || !editing.id} className="gap-1.5">
+                  {sendingTest ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                  Send Test Event {editing.fb_test_event_code ? '(uses test code)' : ''}
+                </Button>
                 {!editing.id && <p className="text-[11px] text-muted-foreground ml-2 inline">Save the connector first to enable testing.</p>}
                 {testResult && (
                   <div className="space-y-2">
@@ -549,6 +543,12 @@ export default function SettingsApiConnectors() {
             </CardContent>
           </Card>
         )}
+
+        {/* Save — persists the connector (incl. the template) and returns to the list */}
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="ghost" onClick={() => setEditing(null)}>Cancel</Button>
+          <Button onClick={saveConnector} disabled={!editing.name} className="gap-1.5"><Save className="w-4 h-4" /> Save Connector</Button>
+        </div>
       </div>
     );
   }
