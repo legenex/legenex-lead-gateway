@@ -208,7 +208,7 @@ function resolveTokenValue(token, d, leadId) {
       return String(Math.floor(Date.now() / 1000));
     case '_c_eventurl':
     case 'optin_url':
-      return d.optin_url || d.optinurl || '';
+      return d.optin_url || d.optinurl || d.landing_page_url || d.landingpage_url || '';
     case '_device_userAgent':
     case 'user_agent':
       return d.user_agent || d.useragent || '';
@@ -251,6 +251,24 @@ function resolveTokenValue(token, d, leadId) {
       return d.zip || d.zipcode || '';
     case 'lead_event':
       return d.lead_event || '';
+    case 'accident_state':
+      return d.accident_state || d.state || '';
+    case 'trustedform_url':
+      return d.trustedform_url || d.trustedform_cert_url || d.trustedform_cert || '';
+    case 'jornaya_token':
+      return d.jornaya_token || d.leadid_token || d.jornayaid || '';
+    case 'fault':
+      return d.fault || d.at_fault || d.atfault || '';
+    case 'treatment':
+      return d.treatment || d.physical_injury || d.injury || '';
+    case 'attorney':
+      return d.attorney || d.with_lawyer || d.has_attorney || d.lawyer || '';
+    case 'incident_date_2':
+      return d.incident_date_2 || d.incident_date || d.accident_date || '';
+    case 'incident_date_3':
+      return d.incident_date_3 || d.incident_date || d.accident_date || '';
+    case 'accident_details':
+      return d.accident_details || d.case_description || d.accident_description || '';
     default:
       const val = d[token];
       return val !== undefined && val !== null ? String(val) : '';
