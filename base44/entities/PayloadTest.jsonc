@@ -12,11 +12,11 @@
     },
     "payload_template": {
       "type": "string",
-      "description": "JSON template with [token] placeholders (pasted from LeadByte)"
+      "description": "JSON template with [token] placeholders (the Payload Builder)"
     },
-    "test_values": {
+    "test_data": {
       "type": "string",
-      "description": "JSON object mapping token name -> sample value"
+      "description": "Raw sample data (JSON or key=value) that AI uses to populate the payload"
     }
   },
   "required": [

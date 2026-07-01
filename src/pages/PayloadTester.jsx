@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
@@ -9,17 +9,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import JsonViewer from '@/components/shared/JsonViewer';
 import PageHeader from '@/components/shared/PageHeader';
-import { Plus, Save, Trash2, Play, Copy, Loader2, Send, FlaskConical } from 'lucide-react';
+import { Plus, Save, Trash2, Play, Copy, Loader2, Send, FlaskConical, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { sendPayloadTest } from '@/functions/sendPayloadTest';
 
-const EMPTY = { id: null, name: '', target_url: '', payload_template: '', test_values: {} };
-
-function parseValues(v) {
-  if (!v) return {};
-  if (typeof v === 'object') return v;
-  try { return JSON.parse(v) || {}; } catch { return {}; }
-}
+const EMPTY = { id: null, name: '', target_url: '', payload_template: '', test_data: '' };
 
 const SAMPLE_TEMPLATE = `{
     "firstName": "[firstname]",
@@ -28,11 +22,18 @@ const SAMPLE_TEMPLATE = `{
     "phoneMobile": "[phone1]",
     "shippingState": "[shippingState]",
     "incidentDate": "[incident_date]",
-    "websource": "Lead Gen - NJA",
     "synopsis": "[accident_details]",
     "caseType": "Automobile Accident",
     "MethodOfContact": "Web Form"
 }`;
+
+const SAMPLE_DATA = `firstname: John
+lastname: Smith
+email: john.smith@example.com
+phone1: 5551234567
+shippingState: CA
+incident_date: 2024-06-15
+accident_details: Rear-end collision at intersection`;
 
 export default function PayloadTester() {
   const qc = useQueryClient();
@@ -42,8 +43,9 @@ export default function PayloadTester() {
   });
 
   const [selectedId, setSelectedId] = useState(null);
-  const [form, setForm] = useState(EMPTY);
+  const [form, setForm] = useState({ ...EMPTY, payload_template: SAMPLE_TEMPLATE, test_data: SAMPLE_DATA });
   const [generated, setGenerated] = useState('');
+  const [generating, setGenerating] = useState(false);
   const [sending, setSending] = useState(false);
   const [sendResult, setSendResult] = useState(null);
 
@@ -54,7 +56,7 @@ export default function PayloadTester() {
       name: t.name || '',
       target_url: t.target_url || '',
       payload_template: t.payload_template || '',
-      test_values: parseValues(t.test_values),
+      test_data: t.test_data || '',
     });
     setGenerated('');
     setSendResult(null);
@@ -62,7 +64,7 @@ export default function PayloadTester() {
 
   const newTest = () => {
     setSelectedId(null);
-    setForm({ ...EMPTY, payload_template: SAMPLE_TEMPLATE });
+    setForm({ ...EMPTY, payload_template: SAMPLE_TEMPLATE, test_data: SAMPLE_DATA });
     setGenerated('');
     setSendResult(null);
   };
@@ -72,30 +74,44 @@ export default function PayloadTester() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tests]);
 
-  const tokens = useMemo(() => {
-    const set = new Set();
-    const re = /\[([^\]]+)\]/g;
-    let m;
-    while ((m = re.exec(form.payload_template || ''))) set.add(m[1]);
-    return [...set];
-  }, [form.payload_template]);
-
-  const buildPayload = () => {
-    let out = form.payload_template || '';
-    for (const tok of tokens) {
-      const v = form.test_values?.[tok];
-      out = out.split(`[${tok}]`).join(v !== undefined && v !== '' ? String(v) : `[${tok}]`);
-    }
-    try { return JSON.stringify(JSON.parse(out), null, 2); } catch { return out; }
-  };
-
-  const generate = () => {
+  const generate = async () => {
     if (!form.payload_template) { toast.error('Paste a payload template first'); return; }
-    setGenerated(buildPayload());
-    setSendResult(null);
-  };
+    if (!form.test_data) { toast.error('Add some test data first'); return; }
+    setGenerating(true); setSendResult(null);
+    try {
+      const prompt = `You are a payload builder. Given a JSON payload template containing [token] placeholders and a block of test data, produce the final populated JSON payload.
 
-  const setValue = (tok, v) => setForm(f => ({ ...f, test_values: { ...f.test_values, [tok]: v } }));
+Rules:
+- Replace every [token] placeholder with the best-matching value from the test data.
+- Match tokens to data keys intelligently (e.g. [firstname] matches "firstname", "first_name", "First Name").
+- If no matching value exists, keep the [token] placeholder unchanged.
+- Output ONLY a valid JSON string of the fully populated payload. No explanation, no markdown, no code fences.
+
+Payload template:
+"""${form.payload_template}"""
+
+Test data:
+"""${form.test_data}"""`;
+
+      const res = await base44.integrations.Core.InvokeLLM({
+        prompt,
+        response_json_schema: {
+          type: 'object',
+          properties: {
+            payload: { type: 'string', description: 'The populated JSON payload as a valid JSON string' },
+          },
+        },
+      });
+
+      const payloadStr = res?.payload || '';
+      try { setGenerated(JSON.stringify(JSON.parse(payloadStr), null, 2)); }
+      catch { setGenerated(payloadStr); }
+      toast.success('Payload generated');
+    } catch (e) {
+      toast.error('Generation failed: ' + (e.message || 'error'));
+    }
+    setGenerating(false);
+  };
 
   const saveMutation = useMutation({
     mutationFn: async (data) => {
@@ -117,16 +133,16 @@ export default function PayloadTester() {
       name: form.name,
       target_url: form.target_url,
       payload_template: form.payload_template,
-      test_values: JSON.stringify(form.test_values || {}),
+      test_data: form.test_data,
     });
   };
 
   const remove = async () => {
-    if (!form.id) { setForm({ ...EMPTY, payload_template: SAMPLE_TEMPLATE }); setSelectedId(null); return; }
+    if (!form.id) { setForm({ ...EMPTY, payload_template: SAMPLE_TEMPLATE, test_data: SAMPLE_DATA }); setSelectedId(null); return; }
     try {
       await base44.entities.PayloadTest.delete(form.id);
       qc.invalidateQueries({ queryKey: ['payloadTests'] });
-      setForm({ ...EMPTY, payload_template: SAMPLE_TEMPLATE });
+      setForm({ ...EMPTY, payload_template: SAMPLE_TEMPLATE, test_data: SAMPLE_DATA });
       setSelectedId(null);
       setGenerated('');
       setSendResult(null);
@@ -136,11 +152,10 @@ export default function PayloadTester() {
 
   const send = async () => {
     if (!form.target_url) { toast.error('Enter a target URL'); return; }
-    const payload = generated || buildPayload();
-    if (!payload) { toast.error('Generate a payload first'); return; }
+    if (!generated) { toast.error('Generate a payload first'); return; }
     setSending(true); setSendResult(null);
     try {
-      const resp = await sendPayloadTest({ target_url: form.target_url, payload });
+      const resp = await sendPayloadTest({ target_url: form.target_url, payload: generated });
       setSendResult(resp.data);
       if (resp.data?.ok) toast.success(`Sent — ${resp.data.status} ${resp.data.statusText || ''}`);
       else toast.error(`Buyer responded ${resp.data?.status || ''} ${resp.data?.statusText || ''}`);
@@ -152,13 +167,13 @@ export default function PayloadTester() {
   };
 
   const copyGenerated = () => {
-    navigator.clipboard.writeText(generated || buildPayload());
+    navigator.clipboard.writeText(generated);
     toast.success('Payload copied');
   };
 
   return (
     <div className="p-6 space-y-6 max-w-[1400px] mx-auto">
-      <PageHeader title="Payload Tester" description="Save payload templates, fill sample values, and test them against buyer endpoints." />
+      <PageHeader title="Payload Tester" description="Paste a template and sample data, let AI build the payload, then test it against buyer endpoints." />
 
       <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
         {/* Saved tests list */}
@@ -210,7 +225,7 @@ export default function PayloadTester() {
                   <Input
                     value={form.name}
                     onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                    placeholder="e.g. Litify Intake — NJA"
+                    placeholder="e.g. LF6"
                     className="mt-1 bg-background"
                   />
                 </div>
@@ -226,8 +241,19 @@ export default function PayloadTester() {
               </div>
 
               <div>
-                <Label className="text-[12px]">Payload Template</Label>
-                <p className="text-[11px] text-muted-foreground mt-0.5">Paste from LeadByte. Tokens in <code className="text-primary">[brackets]</code> are auto-detected below.</p>
+                <Label className="text-[12px]">Test Data</Label>
+                <p className="text-[11px] text-muted-foreground mt-0.5">Paste raw sample values (JSON, key=value, or free text). AI maps these to the template tokens.</p>
+                <Textarea
+                  value={form.test_data}
+                  onChange={e => setForm(f => ({ ...f, test_data: e.target.value }))}
+                  placeholder={SAMPLE_DATA}
+                  className="bg-background font-mono text-[12px] min-h-[120px] leading-relaxed mt-1"
+                />
+              </div>
+
+              <div>
+                <Label className="text-[12px]">Payload Builder</Label>
+                <p className="text-[11px] text-muted-foreground mt-0.5">The JSON template with <code className="text-primary">[token]</code> placeholders. Paste from LeadByte.</p>
                 <Textarea
                   value={form.payload_template}
                   onChange={e => setForm(f => ({ ...f, payload_template: e.target.value }))}
@@ -236,35 +262,14 @@ export default function PayloadTester() {
                 />
               </div>
 
-              {tokens.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <Label className="text-[12px]">Test Values</Label>
-                    <Badge variant="outline" className="text-[10px]">{tokens.length} token{tokens.length > 1 ? 's' : ''}</Badge>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {tokens.map(tok => (
-                      <div key={tok}>
-                        <Label className="text-[11px] font-mono text-muted-foreground">[{tok}]</Label>
-                        <Input
-                          value={form.test_values?.[tok] ?? ''}
-                          onChange={e => setValue(tok, e.target.value)}
-                          placeholder={`value for ${tok}`}
-                          className="mt-0.5 bg-background h-8 text-[12px]"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               <div className="flex items-center gap-2 pt-1">
-                <Button onClick={save} disabled={saveMutation.isPending} className="gap-1.5">
+                <Button onClick={generate} disabled={generating} className="gap-1.5">
+                  {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                  Generate Payload
+                </Button>
+                <Button onClick={save} disabled={saveMutation.isPending} variant="secondary" className="gap-1.5">
                   {saveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                   Save Test
-                </Button>
-                <Button onClick={generate} variant="secondary" className="gap-1.5">
-                  <Play className="w-4 h-4" /> Generate Payload
                 </Button>
                 <Button onClick={remove} variant="ghost" className="gap-1.5 text-destructive hover:text-destructive ml-auto">
                   <Trash2 className="w-4 h-4" /> Delete
@@ -283,7 +288,7 @@ export default function PayloadTester() {
                   </Button>
                   <Button size="sm" onClick={send} disabled={sending} className="gap-1.5">
                     {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                    Send to Buyer
+                    Send Test
                   </Button>
                 </div>
               </CardHeader>
