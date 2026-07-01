@@ -1085,24 +1085,29 @@ Deno.serve(async (req) => {
       return Response.json(queueResponse, { status: 200 });
     }
 
-    // ── DISQUALIFIED: bypass the entire LeadByte system ────────────────
-    // A Disqualified lead is pre-classified — it is NOT an Unsold lead (an
-    // Unsold lead is a Qualified lead that didn't sell). Disqualified leads
-    // skip HLR/phone verification, email validation, TrustedForm, the
-    // payload delay, and LeadByte. They fire on_dq CAPI events + DQ
-    // destinations and return a simple acknowledgment (Sent/Received/Error).
+    // ── PRE-CLASSIFIED LEADS: bypass the entire LeadByte system ────────
+    // A Disqualified lead is NOT an Unsold lead (Unsold = a Qualified lead
+    // that didn't sell). Disqualified leads and custom (non-builtin) lead
+    // statuses (e.g. "24m Lead") are pre-classified — they skip HLR/phone
+    // verification, email validation, TrustedForm, the payload delay, and
+    // LeadByte. They fire their matching trigger (on_dq / on_<custom>) and
+    // return a simple acknowledgment (Sent). The inbound lead_status is
+    // preserved as-is.
     const inboundLeadStatus = String(leadPayload.lead_status || '').trim();
-    if (inboundLeadStatus === 'Disqualified') {
-      fireConnectors(db, apiConnectors, 'on_dq', leadPayload, leadId, supplierAttribution, supplierRecord);
-      if (!routeIs.event) fireDeliveries(db, allDestinations, 'on_dq', leadPayload, leadId, supplierAttribution, supplierRecord);
-      const dqResponse = { Response: 'Sent', reason: 'Disqualified lead — bypassed LeadByte, routed to DQ destinations' };
+    const isBuiltinStatus = BUILTIN_LEAD_STATUSES.includes(inboundLeadStatus);
+    if (inboundLeadStatus && inboundLeadStatus !== 'Qualified' && (inboundLeadStatus === 'Disqualified' || !isBuiltinStatus)) {
+      const bypassTrigger = triggerKeyForStatus(inboundLeadStatus);
+      fireConnectors(db, apiConnectors, bypassTrigger, leadPayload, leadId, supplierAttribution, supplierRecord);
+      if (!routeIs.event) fireDeliveries(db, allDestinations, bypassTrigger, leadPayload, leadId, supplierAttribution, supplierRecord);
+      const finalForBypass = inboundLeadStatus === 'Disqualified' ? 'Disqualified' : 'Sold';
+      const bypassResponse = { Response: 'Sent', reason: `${inboundLeadStatus} lead — bypassed LeadByte, routed to ${bypassTrigger} destinations` };
       await db.entities.Lead.update(leadId, {
-        final_status: 'Disqualified',
+        final_status: finalForBypass,
         processed_at: new Date().toISOString(),
         process_time_ms: Date.now() - startTime,
-        response_returned: JSON.stringify(dqResponse),
+        response_returned: JSON.stringify(bypassResponse),
       });
-      return Response.json(dqResponse, { status: 200 });
+      return Response.json(bypassResponse, { status: 200 });
     }
 
     // ── b. FIRE ON RECEIVED (route-aware, fire-and-forget) ─────────────
