@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, FileText, Share2, Wrench, Settings as SettingsIcon,
@@ -60,11 +60,25 @@ function shouldExpand(group, location) {
   return group.children.some(c => isChildActive(location, c));
 }
 
+const SIDEBAR_GROUPS_KEY = 'legenex_sidebar_open_groups';
+
+// Persisted open groups — survives navigation and page refresh.
+function loadOpenGroups(location) {
+  try {
+    const stored = JSON.parse(localStorage.getItem(SIDEBAR_GROUPS_KEY));
+    if (Array.isArray(stored)) return stored;
+  } catch {}
+  return navGroups.filter(g => shouldExpand(g, location)).map(g => g.label);
+}
+
 export default function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const initialOpen = navGroups.filter(g => shouldExpand(g, location)).map(g => g.label);
-  const [openGroups, setOpenGroups] = useState(initialOpen);
+  const [openGroups, setOpenGroups] = useState(() => loadOpenGroups(location));
+
+  useEffect(() => {
+    try { localStorage.setItem(SIDEBAR_GROUPS_KEY, JSON.stringify(openGroups)); } catch {}
+  }, [openGroups]);
 
   const toggleGroup = (label) => {
     setOpenGroups(prev => prev.includes(label) ? prev.filter(l => l !== label) : [...prev, label]);
