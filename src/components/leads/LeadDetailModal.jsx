@@ -8,6 +8,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import StatusPill from '@/components/shared/StatusPill';
 import JsonViewer from '@/components/shared/JsonViewer';
 import CapiLogView from '@/components/leads/CapiLogView';
+import DeliveryStatusList from '@/components/leads/DeliveryStatusList';
 import { base44 } from '@/api/base44Client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -160,6 +161,9 @@ export default function LeadDetailModal({ lead, open, onClose, initialTab = 'sum
                 ))}
               </div>
             )}
+            <div className="mt-4 pt-4 border-t border-border">
+              <DeliveryStatusList lead={lead} />
+            </div>
           </TabsContent>
 
           <TabsContent value="raw" className="mt-4">
