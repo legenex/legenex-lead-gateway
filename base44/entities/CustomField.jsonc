@@ -55,6 +55,16 @@
       "type": "boolean",
       "default": false,
       "description": "If true, missing this field queues the lead at the gate. System fields are never gated (they are system-populated)."
+    },
+    "system_role": {
+      "type": "string",
+      "enum": [
+        "",
+        "email_valid",
+        "phone_verified"
+      ],
+      "default": "",
+      "description": "Marker for system-populated fields. processLead locates the email_valid / phone_verified field by this role to resolve the configured field_name (editable label/name on the Custom Fields page)."
     }
   },
   "required": [

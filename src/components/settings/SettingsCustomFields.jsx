@@ -330,7 +330,7 @@ export default function SettingsCustomFields() {
                                 <span className="text-[10px] text-muted-foreground font-mono max-w-[120px] truncate" title={f.sample_value}>= {f.sample_value}</span>
                               )}
                               {f.system_populated && <Badge className="bg-primary/10 text-primary text-[10px]">HLR-filled</Badge>}
-                              {f.field_type === 'system' && <Badge className="bg-chart-5/15 text-chart-5 text-[10px]">System</Badge>}
+                              {f.field_type === 'system' && <Badge className="bg-chart-5/15 text-chart-5 text-[10px]">{f.system_role === 'email_valid' ? 'Email Valid' : f.system_role === 'phone_verified' ? 'Phone Verified' : 'System'}</Badge>}
                               {f.required && <Badge className="bg-status-queued status-queued text-[10px]">Required</Badge>}
                             </div>
                           </td>

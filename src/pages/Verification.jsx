@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, Play, Save, Mail, Phone } from 'lucide-react';
 import { testHlr } from '@/functions/testHlr';
 import { testEmail } from '@/functions/testEmail';
+import RouteSupplierFilters from '@/components/verification/RouteSupplierFilters';
 import { toast } from 'sonner';
 
 const failModeDescriptions = {
@@ -37,6 +38,12 @@ const verdictStyles = {
   unknown: 'bg-muted text-muted-foreground',
 };
 
+function parseJsonArray(val) {
+  if (!val) return [];
+  if (Array.isArray(val)) return val;
+  try { const p = JSON.parse(val); return Array.isArray(p) ? p : []; } catch { return []; }
+}
+
 export default function Verification() {
   const qc = useQueryClient();
   const [testPhone, setTestPhone] = useState('');
@@ -49,14 +56,32 @@ export default function Verification() {
   const [testEmailInput, setTestEmailInput] = useState('');
   const [emailResult, setEmailResult] = useState(null);
   const [emailTesting, setEmailTesting] = useState(false);
+  const [emailSaving, setEmailSaving] = useState(false);
 
   const { data: hlrArr = [] } = useQuery({
     queryKey: ['hlr-settings'],
     queryFn: () => base44.entities.HlrSettings.list(),
   });
+  const { data: emailArr = [] } = useQuery({
+    queryKey: ['email-settings'],
+    queryFn: () => base44.entities.EmailValidationSettings.list(),
+  });
+  const { data: suppliers = [] } = useQuery({
+    queryKey: ['suppliers'],
+    queryFn: () => base44.entities.Supplier.filter({ active: true }),
+  });
+  const { data: customFields = [] } = useQuery({
+    queryKey: ['custom-fields'],
+    queryFn: () => base44.entities.CustomField.list(),
+  });
 
   const settings = hlrArr[0] || {};
+  const emailSettings = emailArr[0] || {};
   const [form, setForm] = useState(null);
+  const [emailForm, setEmailForm] = useState(null);
+
+  const emailValidField = customFields.find(f => f.system_role === 'email_valid');
+  const phoneVerifiedField = customFields.find(f => f.system_role === 'phone_verified');
 
   useEffect(() => {
     if (hlrArr.length > 0 && !form) {
@@ -70,20 +95,62 @@ export default function Verification() {
         passthrough_fields: settings.passthrough_fields || '["lh_hlr_response","summary_score","first_name_match","last_name_match","country_code"]',
         min_summary_score: settings.min_summary_score || 0,
         phone_verified_source: settings.phone_verified_source || 'lh_hlr_response',
+        filter_suppliers: parseJsonArray(settings.filter_suppliers),
+        filter_supplier_types: parseJsonArray(settings.filter_supplier_types),
+        filter_routes: parseJsonArray(settings.filter_routes),
       });
     }
   }, [hlrArr]);
 
+  useEffect(() => {
+    if (emailArr.length > 0 && !emailForm) {
+      setEmailForm({
+        enabled: emailSettings.enabled ?? true,
+        filter_suppliers: parseJsonArray(emailSettings.filter_suppliers),
+        filter_supplier_types: parseJsonArray(emailSettings.filter_supplier_types),
+        filter_routes: parseJsonArray(emailSettings.filter_routes),
+      });
+    } else if (emailArr.length === 0 && !emailForm) {
+      setEmailForm({ enabled: true, filter_suppliers: [], filter_supplier_types: [], filter_routes: [] });
+    }
+  }, [emailArr]);
+
   const handleSave = async () => {
     setSaving(true);
-    if (settings.id) {
-      await base44.entities.HlrSettings.update(settings.id, form);
-    } else {
-      await base44.entities.HlrSettings.create(form);
+    const payload = {
+      ...form,
+      filter_suppliers: JSON.stringify(form.filter_suppliers || []),
+      filter_supplier_types: JSON.stringify(form.filter_supplier_types || []),
+      filter_routes: JSON.stringify(form.filter_routes || []),
+    };
+    try {
+      if (settings.id) await base44.entities.HlrSettings.update(settings.id, payload);
+      else await base44.entities.HlrSettings.create(payload);
+      toast.success('HLR settings saved');
+      qc.invalidateQueries({ queryKey: ['hlr-settings'] });
+    } catch (e) {
+      toast.error('Failed to save: ' + (e?.message || 'Unknown error'));
     }
-    toast.success('HLR settings saved');
-    qc.invalidateQueries({ queryKey: ['hlr-settings'] });
     setSaving(false);
+  };
+
+  const handleEmailSave = async () => {
+    setEmailSaving(true);
+    const payload = {
+      enabled: emailForm.enabled,
+      filter_suppliers: JSON.stringify(emailForm.filter_suppliers || []),
+      filter_supplier_types: JSON.stringify(emailForm.filter_supplier_types || []),
+      filter_routes: JSON.stringify(emailForm.filter_routes || []),
+    };
+    try {
+      if (emailSettings.id) await base44.entities.EmailValidationSettings.update(emailSettings.id, payload);
+      else await base44.entities.EmailValidationSettings.create(payload);
+      toast.success('Email validation settings saved');
+      qc.invalidateQueries({ queryKey: ['email-settings'] });
+    } catch (e) {
+      toast.error('Failed to save: ' + (e?.message || 'Unknown error'));
+    }
+    setEmailSaving(false);
   };
 
   const handleTest = async () => {
@@ -106,7 +173,7 @@ export default function Verification() {
     setEmailTesting(false);
   };
 
-  if (!form) return <div className="py-8 text-center text-muted-foreground">Loading...</div>;
+  if (!form || !emailForm) return <div className="py-8 text-center text-muted-foreground">Loading...</div>;
 
   return (
     <div>
@@ -122,6 +189,13 @@ export default function Verification() {
         <TabsContent value="phone">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="space-y-4">
+              {phoneVerifiedField && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-muted/40 border border-border rounded-lg">
+                  <span className="text-[12px] text-muted-foreground">phone_verified field:</span>
+                  <Badge variant="outline" className="font-mono text-[11px]">{`{{${phoneVerifiedField.field_name}}}`}</Badge>
+                  <span className="text-[11px] text-muted-foreground ml-auto">Rename on the Custom Fields page</span>
+                </div>
+              )}
               <Card className="bg-card border-border">
                 <CardHeader><CardTitle className="text-[14px]">Provider Settings</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
@@ -132,6 +206,19 @@ export default function Verification() {
                     <Label className="text-[12px]">Enabled</Label>
                   </div>
                   <div><Label className="text-[12px]">Timeout (ms)</Label><Input type="number" value={form.timeout_ms} onChange={e => setForm(p => ({ ...p, timeout_ms: Number(e.target.value) }))} className="mt-1 bg-background" /></div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-card border-border">
+                <CardHeader><CardTitle className="text-[14px]">Scope — Suppliers & Routes</CardTitle></CardHeader>
+                <CardContent>
+                  <RouteSupplierFilters
+                    suppliers={suppliers}
+                    filter_suppliers={form.filter_suppliers}
+                    filter_supplier_types={form.filter_supplier_types}
+                    filter_routes={form.filter_routes}
+                    onChange={partial => setForm(p => ({ ...p, ...partial }))}
+                  />
                 </CardContent>
               </Card>
 
@@ -212,6 +299,38 @@ export default function Verification() {
         {/* EMAIL VERIFICATION */}
         <TabsContent value="email">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              {emailValidField && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-muted/40 border border-border rounded-lg">
+                  <span className="text-[12px] text-muted-foreground">email_valid field:</span>
+                  <Badge variant="outline" className="font-mono text-[11px]">{`{{${emailValidField.field_name}}}`}</Badge>
+                  <span className="text-[11px] text-muted-foreground ml-auto">Rename on the Custom Fields page</span>
+                </div>
+              )}
+              <Card className="bg-card border-border">
+                <CardHeader>
+                  <CardTitle className="text-[14px]">Email Validation Settings</CardTitle>
+                  <p className="text-[12px] text-muted-foreground">Enable per-route/per-supplier email validation. The result (Yes/No) is written to the email_valid system field and forwarded to destinations.</p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Switch checked={emailForm.enabled} onCheckedChange={v => setEmailForm(p => ({ ...p, enabled: v }))} />
+                    <Label className="text-[12px]">Enabled</Label>
+                  </div>
+                  <RouteSupplierFilters
+                    suppliers={suppliers}
+                    filter_suppliers={emailForm.filter_suppliers}
+                    filter_supplier_types={emailForm.filter_supplier_types}
+                    filter_routes={emailForm.filter_routes}
+                    onChange={partial => setEmailForm(p => ({ ...p, ...partial }))}
+                  />
+                  <Button onClick={handleEmailSave} disabled={emailSaving} className="gap-1.5 w-full">
+                    <Save className="w-4 h-4" /> {emailSaving ? 'Saving...' : 'Save Settings'}
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+
             <Card className="bg-card border-border">
               <CardHeader>
                 <CardTitle className="text-[14px]">Email Validation Test</CardTitle>
@@ -232,41 +351,37 @@ export default function Verification() {
                   {emailTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
                   {emailTesting ? 'Validating...' : 'Validate Email'}
                 </Button>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-card border-border">
-              <CardHeader><CardTitle className="text-[14px]">Result</CardTitle></CardHeader>
-              <CardContent>
-                {!emailResult ? (
-                  <div className="py-8 text-center text-muted-foreground text-[13px]">Run a validation to see the result.</div>
-                ) : emailResult.error ? (
-                  <div className="py-8 text-center text-status-error text-[13px]">{emailResult.error}</div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
+                {emailResult && (
+                  <div className="mt-2 rounded-lg border border-border bg-muted/30 p-4">
+                    <div className="flex items-center justify-between mb-3">
                       <div className="text-[13px] text-muted-foreground">Verdict</div>
                       <Badge className={`${verdictStyles[emailResult.verdict] || verdictStyles.unknown} text-[11px]`}>
                         {emailResult.verdict?.replace(/_/g, ' ') || 'unknown'}
                       </Badge>
                     </div>
-                    <div className="grid grid-cols-2 gap-3 text-[13px]">
-                      <div><span className="text-muted-foreground">Email:</span> <span className="text-foreground font-mono">{emailResult.email}</span></div>
-                      <div><span className="text-muted-foreground">Domain:</span> <span className="text-foreground font-mono">{emailResult.domain}</span></div>
-                      <div><span className="text-muted-foreground">Format valid:</span> <span className="text-foreground">{String(emailResult.format)}</span></div>
-                      <div><span className="text-muted-foreground">DNS valid:</span> <span className="text-foreground">{String(emailResult.dns)}</span></div>
-                      <div><span className="text-muted-foreground">Disposable:</span> <span className="text-foreground">{String(emailResult.disposable)}</span></div>
-                      <div><span className="text-muted-foreground">Free provider:</span> <span className="text-foreground">{String(emailResult.free)}</span></div>
-                      <div><span className="text-muted-foreground">Role-based:</span> <span className="text-foreground">{String(emailResult.role)}</span></div>
-                    </div>
-                    {Array.isArray(emailResult.mx_records) && emailResult.mx_records.length > 0 && (
-                      <div>
-                        <div className="text-[12px] text-muted-foreground mb-1">MX Records</div>
-                        <div className="space-y-1">
-                          {emailResult.mx_records.map((mx, i) => (
-                            <div key={i} className="font-mono text-[11px] text-foreground bg-muted rounded px-2 py-1">{mx}</div>
-                          ))}
+                    {emailResult.error ? (
+                      <div className="text-status-error text-[13px]">{emailResult.error}</div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-3 text-[13px]">
+                          <div><span className="text-muted-foreground">Email:</span> <span className="text-foreground font-mono">{emailResult.email}</span></div>
+                          <div><span className="text-muted-foreground">Domain:</span> <span className="text-foreground font-mono">{emailResult.domain}</span></div>
+                          <div><span className="text-muted-foreground">Format valid:</span> <span className="text-foreground">{String(emailResult.format)}</span></div>
+                          <div><span className="text-muted-foreground">DNS valid:</span> <span className="text-foreground">{String(emailResult.dns)}</span></div>
+                          <div><span className="text-muted-foreground">Disposable:</span> <span className="text-foreground">{String(emailResult.disposable)}</span></div>
+                          <div><span className="text-muted-foreground">Free provider:</span> <span className="text-foreground">{String(emailResult.free)}</span></div>
+                          <div><span className="text-muted-foreground">Role-based:</span> <span className="text-foreground">{String(emailResult.role)}</span></div>
                         </div>
+                        {Array.isArray(emailResult.mx_records) && emailResult.mx_records.length > 0 && (
+                          <div>
+                            <div className="text-[12px] text-muted-foreground mb-1">MX Records</div>
+                            <div className="space-y-1">
+                              {emailResult.mx_records.map((mx, i) => (
+                                <div key={i} className="font-mono text-[11px] text-foreground bg-muted rounded px-2 py-1">{mx}</div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

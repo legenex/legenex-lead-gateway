@@ -20,9 +20,9 @@ function formatTimestamp(date, fmt) {
     .replace('SS', pad(date.getUTCSeconds()));
 }
 
-function runCalculations(calcs, leadData, hlrResult, phoneVerifiedSource) {
+function runCalculations(calcs, leadData, hlrResult, phoneVerifiedSource, phoneVerifiedFieldName) {
   const enriched = { ...leadData };
-  enriched.phone_verified = resolvePhoneVerified(hlrResult, phoneVerifiedSource);
+  enriched[phoneVerifiedFieldName || 'phone_verified'] = resolvePhoneVerified(hlrResult, phoneVerifiedSource);
   const sorted = [...calcs].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
   for (const calc of sorted) {
     if (!calc.enabled) continue;
@@ -450,6 +450,32 @@ function connectorMatchesConditions(conn, leadData) {
   return true;
 }
 
+// Does the current lead_route match a verification settings' route filter?
+// Empty filter defaults to the original HLR/email routes (standard, direct, data).
+function routeMatchesFilter(settings, routeIs) {
+  if (!settings) return routeIs.standard || routeIs.direct || routeIs.data;
+  const routes = parseJsonArray(settings.filter_routes);
+  if (routes.length === 0) return routeIs.standard || routeIs.direct || routeIs.data;
+  return routes.some(r => routeIs[r]);
+}
+
+// Does the current supplier match a verification settings' supplier filter?
+function supplierMatchesFilter(settings, supplierAttribution, supplierRecord) {
+  if (!settings) return true;
+  const suppliers = parseJsonArray(settings.filter_suppliers);
+  if (suppliers.length > 0) {
+    const sn = supplierAttribution || '';
+    const sid = supplierRecord?.sid || '';
+    if (!suppliers.includes(sn) && !suppliers.includes(sid)) return false;
+  }
+  const types = parseJsonArray(settings.filter_supplier_types);
+  if (types.length > 0) {
+    const st = supplierRecord?.supplier_type || '';
+    if (!types.includes(st)) return false;
+  }
+  return true;
+}
+
 // Resolve the event name for a given trigger from the connector's per-trigger fields.
 // on_received: received_event_name || lead_event_name || 'Lead'
 // on_unsold: unsold_event_name || 'Lead'
@@ -787,8 +813,9 @@ Deno.serve(async (req) => {
     await db.entities.Lead.update(leadId, { lead_id: systemLeadId });
 
     // Load all config in parallel
-    const [hlrSettingsArr, allDestinations, calcs, customFields, apiConnectors, responseMappings] = await Promise.all([
+    const [hlrSettingsArr, emailSettingsArr, allDestinations, calcs, customFields, apiConnectors, responseMappings] = await Promise.all([
       db.entities.HlrSettings.list(),
+      db.entities.EmailValidationSettings.list(),
       db.entities.LeadByteConnector.filter({ enabled: true }),
       db.entities.CustomCalculation.list(),
       db.entities.CustomField.list(),
@@ -796,6 +823,11 @@ Deno.serve(async (req) => {
       db.entities.ResponseMapping.list('sort_order', 50),
     ]);
     const hlrSettings = hlrSettingsArr[0] || null;
+    const emailSettings = emailSettingsArr[0] || null;
+    const emailValidField = customFields.find(f => f.system_role === 'email_valid');
+    const phoneVerifiedField = customFields.find(f => f.system_role === 'phone_verified');
+    const emailValidFieldName = emailValidField?.field_name || 'email_valid';
+    const phoneVerifiedFieldName = phoneVerifiedField?.field_name || 'phone_verified';
     const leadByteConnector = allDestinations.find(d => d.is_default) || null;
 
     // Look up supplier record for type-based filtering
@@ -942,8 +974,9 @@ Deno.serve(async (req) => {
     let hlrResult = null;
     let hlrRequestBody = {};
 
-    const hlrRouteAllowed = routeIs.standard || routeIs.direct || routeIs.data;
-    if (hlrSettings && hlrSettings.enabled && hlrRouteAllowed && !inboundPhoneVerified) {
+    const hlrRouteAllowed = routeMatchesFilter(hlrSettings, routeIs);
+    const hlrSupplierAllowed = supplierMatchesFilter(hlrSettings, supplierAttribution, supplierRecord);
+    if (hlrSettings && hlrSettings.enabled && hlrRouteAllowed && hlrSupplierAllowed && !inboundPhoneVerified) {
       const reqFieldMap = typeof hlrSettings.request_field_map === 'string'
         ? JSON.parse(hlrSettings.request_field_map || '{}')
         : (hlrSettings.request_field_map || {});
@@ -998,9 +1031,12 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── c2. EMAIL VALIDATION (same lead_routes as HLR) ───────────────────
-    const emailRouteAllowed = routeIs.standard || routeIs.direct || routeIs.data;
-    if (emailRouteAllowed && email) {
+    // ── c2. EMAIL VALIDATION (configurable routes/suppliers) ─────────────
+    const emailEnabled = emailSettings ? emailSettings.enabled !== false : true;
+    const emailRouteAllowed = routeMatchesFilter(emailSettings, routeIs);
+    const emailSupplierAllowed = supplierMatchesFilter(emailSettings, supplierAttribution, supplierRecord);
+    let emailValidResult = null;
+    if (emailEnabled && emailRouteAllowed && emailSupplierAllowed && email) {
       try {
         const ev = String(email).trim().toLowerCase();
         const formatOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ev);
@@ -1013,22 +1049,27 @@ Deno.serve(async (req) => {
             mxOk = Array.isArray(ddata.Answer) && ddata.Answer.some(a => a.type === 15);
           } catch {}
         }
-        await db.entities.Lead.update(leadId, { email_valid: (formatOk && mxOk) ? 'Yes' : 'No' });
+        emailValidResult = (formatOk && mxOk) ? 'Yes' : 'No';
+        await db.entities.Lead.update(leadId, { email_valid: emailValidResult });
       } catch {
+        emailValidResult = 'No';
         await db.entities.Lead.update(leadId, { email_valid: 'No' });
       }
     }
 
     // ── Run custom calculations ──────────────────────────────────────────
     const phoneVerifiedSource = hlrSettings?.phone_verified_source || 'lh_hlr_response';
-    const enrichedData = runCalculations(calcs, leadPayload, hlrResult, phoneVerifiedSource);
+    const enrichedData = runCalculations(calcs, leadPayload, hlrResult, phoneVerifiedSource, phoneVerifiedFieldName);
     if (hlrResult) {
       enrichedData.hlr_status = hlrResult.lh_hlr_response || '';
       enrichedData.hlr_score = hlrResult.summary_score != null ? String(hlrResult.summary_score) : '';
       enrichedData.country_code = hlrResult.country_code || '';
     }
     if (inboundPhoneVerified && !hlrResult) {
-      enrichedData.phone_verified = inboundPhoneVerified;
+      enrichedData[phoneVerifiedFieldName] = inboundPhoneVerified;
+    }
+    if (emailValidResult !== null) {
+      enrichedData[emailValidFieldName] = emailValidResult;
     }
 
     // ── d. GATE: TrustedForm cert (hard enforce) ─────────────────────────

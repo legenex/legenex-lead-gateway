@@ -45,6 +45,18 @@
         "boolean"
       ],
       "default": "lh_hlr_response"
+    },
+    "filter_suppliers": {
+      "type": "string",
+      "description": "JSON array of supplier names or SIDs to run HLR for. Empty = all suppliers."
+    },
+    "filter_supplier_types": {
+      "type": "string",
+      "description": "JSON array of supplier types (Internal, External, Calls) to run HLR for. Empty = all."
+    },
+    "filter_routes": {
+      "type": "string",
+      "description": "JSON array of lead_route keys (standard, direct, data, event, queue) to run HLR on. Empty = standard, direct, data."
     }
   },
   "required": [
