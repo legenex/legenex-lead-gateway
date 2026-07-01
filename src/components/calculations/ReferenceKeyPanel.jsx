@@ -37,16 +37,11 @@ export default function ReferenceKeyPanel() {
 
   const q = search.trim().toLowerCase();
   const filtered = q
-    ? items
-        .map(it => ({
-          ...it,
-          values: it.values.filter(v => String(v).toLowerCase().includes(q)),
-        }))
-        .filter(it =>
-          it.field_name.toLowerCase().includes(q) ||
-          it.label.toLowerCase().includes(q) ||
-          it.values.length
-        )
+    ? items.filter(it =>
+        it.field_name.toLowerCase().includes(q) ||
+        it.label.toLowerCase().includes(q) ||
+        it.values.some(v => String(v).toLowerCase().includes(q))
+      )
     : items;
 
   const copy = (val) => {
@@ -76,26 +71,27 @@ export default function ReferenceKeyPanel() {
         {filtered.map(it => (
           <div
             key={it.id}
-            className="flex gap-2.5 items-start py-1.5 border-b border-border/40 last:border-0"
+            className="group border-b border-border/40 last:border-0"
           >
-            <div className="w-[34%] shrink-0 pt-0.5">
-              <div className="text-[12px] font-semibold text-foreground leading-tight">{it.label}</div>
-              <code className="text-[10px] font-mono text-primary/80 break-all">{it.field_name}</code>
-              {it.note && (
-                <div className="text-[9px] text-muted-foreground leading-tight mt-0.5">{it.note}</div>
-              )}
+            <div className="flex items-center gap-2 py-1.5 cursor-default flex-wrap">
+              <span className="text-[12px] font-semibold text-foreground">{it.label}</span>
+              <code className="text-[10px] font-mono text-muted-foreground">{it.field_name}</code>
+              {it.note && <span className="text-[9px] text-muted-foreground">· {it.note}</span>}
+              <span className="text-[9px] text-muted-foreground/60 ml-auto group-hover:hidden">hover</span>
             </div>
-            <div className="flex-1 flex flex-wrap gap-1 min-w-0">
-              {it.values.map((v, i) => (
-                <code
-                  key={i}
-                  className="text-[10px] font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded cursor-pointer hover:bg-primary/20"
-                  onClick={() => copy(v)}
-                  title="Click to copy"
-                >
-                  {v}
-                </code>
-              ))}
+            <div className="max-h-0 overflow-hidden group-hover:max-h-48 transition-all duration-150">
+              <div className="flex flex-wrap gap-1 pb-2 pt-0.5">
+                {it.values.map((v, i) => (
+                  <code
+                    key={i}
+                    className="text-[10px] font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded cursor-pointer hover:bg-primary/20"
+                    onClick={() => copy(v)}
+                    title="Click to copy"
+                  >
+                    {v}
+                  </code>
+                ))}
+              </div>
             </div>
           </div>
         ))}
