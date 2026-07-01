@@ -117,6 +117,7 @@ export default function LeadDetailModal({ lead, open, onClose, initialTab = 'sum
             <TabsTrigger value="hlr">HLR Trace</TabsTrigger>
             <TabsTrigger value="leadbyte">LeadByte Trace</TabsTrigger>
             <TabsTrigger value="capi">CAPI Log</TabsTrigger>
+            <TabsTrigger value="delivery">Delivery Log</TabsTrigger>
           </TabsList>
 
           <TabsContent value="summary" className="space-y-4 mt-4">
@@ -179,6 +180,10 @@ export default function LeadDetailModal({ lead, open, onClose, initialTab = 'sum
 
           <TabsContent value="capi" className="mt-4">
             <JsonViewer data={lead.capi_log} title="CAPI Event Log" />
+          </TabsContent>
+
+          <TabsContent value="delivery" className="mt-4">
+            <JsonViewer data={lead.delivery_log} title="Delivery Log" />
           </TabsContent>
         </Tabs>
 

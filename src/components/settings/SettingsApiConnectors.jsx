@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import JsonViewer from '@/components/shared/JsonViewer';
 import { testCapiConnector } from '@/functions/testCapiConnector';
+import EventLogsTab from '@/components/settings/EventLogsTab';
 import TokenReferencePanel from '@/components/settings/TokenReferencePanel';
 import ConnectorConditionsEditor from '@/components/settings/ConnectorConditionsEditor';
 import ConnectorFilterPanel from '@/components/settings/ConnectorFilterPanel';
@@ -294,14 +295,10 @@ export default function SettingsApiConnectors() {
   const sendTestEvent = async () => {
     setSendingTest(true);
     setTestResult(null);
-    let parsed;
-    try { parsed = JSON.parse(testPayloadStr); } catch {
-      toast.error('Invalid JSON in test payload');
-      setSendingTest(false);
-      return;
-    }
+    // Pass the raw template string — the backend resolves tokens then parses JSON.
+    // Pre-parsing here fails on unquoted tokens like "value": {{conv_value}}.
     try {
-      const resp = await testCapiConnector({ connector_id: editing.id, test_payload: parsed });
+      const resp = await testCapiConnector({ connector_id: editing.id, test_payload: testPayloadStr });
       setTestResult(resp.data);
       if (resp.data?.error) toast.error(resp.data.error);
       else toast.success('Test event sent');
@@ -555,8 +552,17 @@ export default function SettingsApiConnectors() {
             {p.label}
           </button>
         ))}
+        <button onClick={() => setActivePlatform('logs')}
+          className={`px-4 py-2 text-[13px] font-medium transition-colors border-b-2 -mb-px whitespace-nowrap
+            ${activePlatform === 'logs' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
+          Event Logs
+        </button>
       </div>
 
+      {activePlatform === 'logs' ? (
+        <EventLogsTab />
+      ) : (
+      <>
       {/* Status filter + Add */}
       <div className="flex justify-between items-center mb-4 gap-3">
         <div className="flex items-center gap-2">
@@ -628,6 +634,8 @@ export default function SettingsApiConnectors() {
           );
         })}
       </div>
+      </>
+      )}
     </div>
   );
 }

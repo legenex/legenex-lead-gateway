@@ -614,6 +614,11 @@ function fireDeliveries(db, destinations, trigger, leadData, leadId, supplierAtt
     const conn = { ...dest, name: dest.api_name };
     sendHttpEvent(conn, leadData, leadId, '')
       .then(async (result) => {
+        await appendDeliveryLog(db, leadId, {
+          connector: dest.api_name, trigger, http_status: result.http_status,
+          success: !!result.success, error: result.error || '',
+          timestamp: new Date().toISOString(),
+        });
         if (!result.success) {
           await db.entities.ErrorLog.create({
             lead_id: leadId, stage: 'leadbyte', severity: 'warning',
@@ -623,6 +628,11 @@ function fireDeliveries(db, destinations, trigger, leadData, leadId, supplierAtt
         }
       })
       .catch(async (err) => {
+        await appendDeliveryLog(db, leadId, {
+          connector: dest.api_name, trigger, http_status: null,
+          success: false, error: err.message || '',
+          timestamp: new Date().toISOString(),
+        });
         await db.entities.ErrorLog.create({
           lead_id: leadId, stage: 'leadbyte', severity: 'warning',
           message: `Delivery error: ${dest.api_name}`,
@@ -642,6 +652,19 @@ async function appendCapiLog(db, leadId, result) {
     try { log = JSON.parse(lead.capi_log || '[]'); } catch {}
     log.push({ connector: result.connector, event_name: result.event_name, pixel: result.pixel, http_status: result.http_status, fbtrace_id: result.fbtrace_id });
     await db.entities.Lead.update(leadId, { capi_log: JSON.stringify(log) });
+  } catch {}
+}
+
+// Append a Delivery result to the lead's delivery_log field.
+async function appendDeliveryLog(db, leadId, entry) {
+  try {
+    const leads = await db.entities.Lead.filter({ id: leadId });
+    const lead = leads[0];
+    if (!lead) return;
+    let log = [];
+    try { log = JSON.parse(lead.delivery_log || '[]'); } catch {}
+    log.push(entry);
+    await db.entities.Lead.update(leadId, { delivery_log: JSON.stringify(log) });
   } catch {}
 }
 

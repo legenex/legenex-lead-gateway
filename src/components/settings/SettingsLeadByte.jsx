@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import JsonViewer from '@/components/shared/JsonViewer';
 import { testLeadByteConnector } from '@/functions/testLeadByteConnector';
+import DeliveryLogsTab from '@/components/settings/DeliveryLogsTab';
 import { buildDefaultActualPayload } from '@/components/settings/ActualPayloadEditor';
 import { HighlightedPayloadEditor } from '@/components/settings/HighlightedPayloadEditor';
 import TokenReferencePanel from '@/components/settings/TokenReferencePanel';
@@ -658,7 +659,7 @@ export default function SettingsLeadByte() {
   return (
     <div>
       <div className="flex gap-1 border-b border-border mb-5">
-        {[{ k: 'connectors', l: 'Destinations' }, { k: 'responses', l: 'Response Builder' }].map(({ k, l }) => (
+        {[{ k: 'connectors', l: 'Destinations' }, { k: 'responses', l: 'Response Builder' }, { k: 'logs', l: 'Delivery Logs' }].map(({ k, l }) => (
           <button key={k} onClick={() => setActiveTab(k)}
             className={`px-4 py-2 text-[13px] font-medium transition-colors border-b-2 -mb-px
               ${activeTab === k ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
@@ -760,6 +761,8 @@ export default function SettingsLeadByte() {
           savingMapping={savingMapping}
         />
       )}
+
+      {activeTab === 'logs' && <DeliveryLogsTab />}
     </div>
   );
 }
