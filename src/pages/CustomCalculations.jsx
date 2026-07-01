@@ -15,6 +15,7 @@ import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Plus, Pencil, Trash2, Calculator } from 'lucide-react';
 import { toast } from 'sonner';
 import { OutputFieldPicker } from '@/components/calculations/OutputFieldPicker';
+import ReferenceKeyPanel from '@/components/calculations/ReferenceKeyPanel';
 
 const DEFAULT_DATE_BUCKETS = [
   { label: 'Within 7 Days', max_days: 7 },
@@ -200,6 +201,8 @@ export default function CustomCalculations() {
         </Button>
       </PageHeader>
 
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
       {calcs.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground">
           <Calculator className="w-10 h-10 mb-3 opacity-30" />
@@ -228,15 +231,24 @@ export default function CustomCalculations() {
           ))}
         </div>
       )}
+        </div>
+        <div className="lg:col-span-1">
+          <div className="rounded-lg bg-card border border-border p-3 sticky top-4">
+            <div className="text-[13px] font-semibold text-foreground mb-2">Reference Key</div>
+            <ReferenceKeyPanel />
+          </div>
+        </div>
+      </div>
 
       {/* Edit/Create Dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editId ? 'Edit Calculated Field' : 'New Calculated Field'}</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 py-2">
+            <div className="lg:col-span-2 space-y-4">
             {/* Input Field — at the TOP */}
             <div className="space-y-1.5">
               <Label>Input Field</Label>
@@ -347,6 +359,13 @@ export default function CustomCalculations() {
                 </p>
               </div>
             )}
+          </div>
+          <div className="lg:col-span-1">
+            <div className="rounded-lg bg-card border border-border p-3">
+              <div className="text-[13px] font-semibold text-foreground mb-2">Reference Key</div>
+              <ReferenceKeyPanel />
+            </div>
+          </div>
           </div>
 
           <DialogFooter>
