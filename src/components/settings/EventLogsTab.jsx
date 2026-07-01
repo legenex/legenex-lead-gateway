@@ -29,7 +29,9 @@ export default function EventLogsTab() {
       connector: e.connector || '',
       event_name: e.event_name || '',
       pixel: e.pixel || '',
+      value: e.value ?? '',
       http_status: e.http_status,
+      events_received: e.events_received,
       fbtrace_id: e.fbtrace_id || '',
       created: l.created_date,
     }))
@@ -46,14 +48,14 @@ export default function EventLogsTab() {
         <table className="w-full text-[12px]">
           <thead>
             <tr className="border-b border-border bg-muted/40">
-              {['Lead', 'Supplier', 'Connector', 'Event', 'Pixel', 'HTTP', 'fbtrace_id', 'Date'].map(h => (
+              {['Lead', 'Supplier', 'Connector', 'Event', 'Pixel', 'Value', 'HTTP', 'Events', 'fbtrace_id', 'Date'].map(h => (
                 <th key={h} className="text-left px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {rows.length === 0 && (
-              <tr><td colSpan={8} className="px-4 py-6 text-center text-muted-foreground">No CAPI events logged yet</td></tr>
+              <tr><td colSpan={10} className="px-4 py-6 text-center text-muted-foreground">No CAPI events logged yet</td></tr>
             )}
             {rows.map(r => (
               <tr key={r.key} className="hover:bg-accent/30">
@@ -62,9 +64,15 @@ export default function EventLogsTab() {
                 <td className="px-3 py-2 whitespace-nowrap">{r.connector}</td>
                 <td className="px-3 py-2 whitespace-nowrap"><Badge className="bg-primary/10 text-primary text-[9px]">{r.event_name}</Badge></td>
                 <td className="px-3 py-2 font-mono text-muted-foreground whitespace-nowrap">{r.pixel}</td>
+                <td className="px-3 py-2 font-mono text-[11px] text-foreground whitespace-nowrap">{r.value || '—'}</td>
                 <td className="px-3 py-2 whitespace-nowrap">
                   {r.http_status != null
                     ? <Badge className={r.http_status < 300 ? 'bg-status-sold status-sold text-[9px]' : 'bg-status-error status-error text-[9px]'}>{r.http_status}</Badge>
+                    : <span className="text-muted-foreground">—</span>}
+                </td>
+                <td className="px-3 py-2 whitespace-nowrap">
+                  {r.events_received != null
+                    ? <Badge className={r.events_received > 0 ? 'bg-status-sold status-sold text-[9px]' : 'bg-status-error status-error text-[9px]'}>{r.events_received}</Badge>
                     : <span className="text-muted-foreground">—</span>}
                 </td>
                 <td className="px-3 py-2 font-mono text-[10px] text-muted-foreground whitespace-nowrap">{r.fbtrace_id || '—'}</td>

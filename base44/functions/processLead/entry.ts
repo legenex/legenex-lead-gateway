@@ -389,7 +389,7 @@ async function sendCapiEvent(conn, leadData, leadId, eventName, trigger) {
     return {
       connector: conn.name, event_name: eventName, pixel,
       http_status: null, fbtrace_id: '', success: false,
-      error: `Template resolution failed: ${err.message}`,
+      error: `Template resolution failed: ${err.message}`, value: '',
     };
   }
 
@@ -430,15 +430,23 @@ async function sendCapiEvent(conn, leadData, leadId, eventName, trigger) {
     const text = await resp.text();
     let fbResult;
     try { fbResult = JSON.parse(text); } catch { fbResult = { raw: text }; }
+    const eventsReceived = fbResult.events_received;
+    // A 200 with events_received:0 (or an error object) is a real failure.
+    const fbOk = resp.ok && !fbResult.error && (eventsReceived == null || eventsReceived >= 1);
+    const sentValue = body?.data?.[0]?.custom_data?.value ?? '';
+    const errMsg = fbResult.error
+      ? (typeof fbResult.error === 'object' ? JSON.stringify(fbResult.error) : String(fbResult.error))
+      : (eventsReceived === 0 ? 'events_received: 0' : '');
     return {
       connector: conn.name, event_name: eventName, pixel,
       http_status: resp.status, fbtrace_id: fbResult.fbtrace_id || '',
-      success: resp.ok, raw: fbResult,
+      success: fbOk, value: sentValue, fb_response: fbResult, error: errMsg,
     };
   } catch (err) {
     return {
       connector: conn.name, event_name: eventName, pixel,
       http_status: null, fbtrace_id: '', success: false, error: err.message,
+      value: body?.data?.[0]?.custom_data?.value ?? '',
     };
   }
 }
@@ -663,6 +671,8 @@ function fireDeliveries(db, destinations, trigger, leadData, leadId, supplierAtt
             message: `Delivery failure: ${dest.api_name}`,
             detail: JSON.stringify(result), supplier_name: supplierAttribution,
           }).catch(() => {});
+          await evaluateNotifications(db, ['api_error'], { id: leadId }, supplierAttribution,
+            { message: `Delivery failure: ${dest.api_name} - ${result.error || result.http_status}` }).catch(() => {});
         }
       })
       .catch(async (err) => {
@@ -688,7 +698,13 @@ async function appendCapiLog(db, leadId, result) {
     if (!lead) return;
     let log = [];
     try { log = JSON.parse(lead.capi_log || '[]'); } catch {}
-    log.push({ connector: result.connector, event_name: result.event_name, pixel: result.pixel, http_status: result.http_status, fbtrace_id: result.fbtrace_id });
+    log.push({
+      connector: result.connector, event_name: result.event_name, pixel: result.pixel,
+      http_status: result.http_status, fbtrace_id: result.fbtrace_id,
+      value: result.value ?? '', events_received: result.fb_response?.events_received,
+      fb_response: result.fb_response, success: !!result.success, error: result.error || '',
+      timestamp: new Date().toISOString(),
+    });
     await db.entities.Lead.update(leadId, { capi_log: JSON.stringify(log) });
   } catch {}
 }

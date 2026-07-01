@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import StatusPill from '@/components/shared/StatusPill';
 import JsonViewer from '@/components/shared/JsonViewer';
+import CapiLogView from '@/components/leads/CapiLogView';
 import { base44 } from '@/api/base44Client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -179,7 +180,7 @@ export default function LeadDetailModal({ lead, open, onClose, initialTab = 'sum
           </TabsContent>
 
           <TabsContent value="capi" className="mt-4">
-            <JsonViewer data={lead.capi_log} title="CAPI Event Log" />
+            <CapiLogView capiLog={lead.capi_log} />
           </TabsContent>
 
           <TabsContent value="delivery" className="mt-4">
