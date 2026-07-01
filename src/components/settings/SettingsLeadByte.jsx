@@ -309,11 +309,13 @@ export default function SettingsLeadByte() {
   };
 
   const saveConnector = async () => {
-    const data = { ...editing, headers: JSON.stringify(headerRows) };
+    const data = { ...editing, headers: JSON.stringify(headerRows), test_payload_last_used: testPayloadStr };
     if (editing.id) {
       await base44.entities.LeadByteConnector.update(editing.id, data);
     } else {
-      await base44.entities.LeadByteConnector.create(data);
+      const created = await base44.entities.LeadByteConnector.create(data);
+      // Persist the edited test payload against the newly created connector too
+      await base44.entities.LeadByteConnector.update(created.id, { test_payload_last_used: testPayloadStr });
     }
     toast.success('Connector saved');
     setEditing(null);
