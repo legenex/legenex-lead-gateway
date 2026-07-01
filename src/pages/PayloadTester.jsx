@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import JsonViewer from '@/components/shared/JsonViewer';
 import PageHeader from '@/components/shared/PageHeader';
-import { Plus, Save, Trash2, Play, Copy, Loader2, Send, FlaskConical } from 'lucide-react';
+import { Plus, Save, Trash2, Play, Copy, Loader2, Send, FlaskConical, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { sendPayloadTest } from '@/functions/sendPayloadTest';
 
@@ -46,6 +46,7 @@ export default function PayloadTester() {
   const [generated, setGenerated] = useState('');
   const [sending, setSending] = useState(false);
   const [sendResult, setSendResult] = useState(null);
+  const [sampleData, setSampleData] = useState('');
 
   const selectTest = (t) => {
     setSelectedId(t.id);
@@ -96,6 +97,72 @@ export default function PayloadTester() {
   };
 
   const setValue = (tok, v) => setForm(f => ({ ...f, test_values: { ...f.test_values, [tok]: v } }));
+
+  const normalize = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  const SYNONYMS = [
+    { keys: ['firstname', 'fname', 'first'], tokens: ['firstname', 'fname', 'first_name', 'first'] },
+    { keys: ['lastname', 'lname', 'last'], tokens: ['lastname', 'lname', 'last_name', 'last'] },
+    { keys: ['email', 'emailaddress'], tokens: ['email', 'emailaddress', 'email_address'] },
+    { keys: ['mobile', 'phone', 'cell'], tokens: ['phone1', 'phone', 'phone2', 'mobile', 'phonemobile', 'phone_mobile', 'cell', 'cellphone'] },
+    { keys: ['state', 'accidentstate', 'shippingstate'], tokens: ['shippingstate', 'state', 'accidentstate', 'shipping_state', 'accident_state'] },
+    { keys: ['zip', 'zipcode', 'postcode'], tokens: ['zip', 'zipcode', 'zip_code', 'postcode'] },
+    { keys: ['accidentdetails', 'details', 'synopsis'], tokens: ['accident_details', 'synopsis', 'details', 'accidentdetails'] },
+    { keys: ['incidentdate', 'date'], tokens: ['incident_date', 'incidentdate', 'date'] },
+  ];
+
+  const matchToken = (label, toks) => {
+    const nl = normalize(label);
+    if (!nl) return null;
+    for (const tok of toks) if (normalize(tok) === nl) return tok;
+    for (const syn of SYNONYMS) {
+      if (syn.keys.some(k => nl.includes(k))) {
+        for (const t of syn.tokens) {
+          const m = toks.find(tok => normalize(tok) === normalize(t));
+          if (m) return m;
+        }
+      }
+    }
+    return null;
+  };
+
+  const parseSampleBlob = (text) => {
+    const pairs = [];
+    const re = /([A-Za-z][A-Za-z /'-]*?):\s*([^:]*?)(?=(?:,\s*[A-Za-z][A-Za-z /'-]*?:)|$)/g;
+    let m;
+    while ((m = re.exec(text))) {
+      const label = m[1].trim();
+      const value = m[2].trim();
+      if (label) pairs.push({ label, value });
+    }
+    return pairs;
+  };
+
+  const populatePayload = () => {
+    if (!sampleData.trim()) { toast.error('Paste sample data first'); return; }
+    if (tokens.length === 0) { toast.error('No tokens detected in the template'); return; }
+    const pairs = parseSampleBlob(sampleData);
+    if (!pairs.length) { toast.error('Could not parse "Label: value" pairs'); return; }
+    const filled = {};
+    let matched = 0;
+    for (const { label, value } of pairs) {
+      const tok = matchToken(label, tokens);
+      if (tok) {
+        filled[tok] = value.split(',')[0].trim();
+        matched++;
+      }
+    }
+    const merged = { ...form.test_values, ...filled };
+    setForm(f => ({ ...f, test_values: merged }));
+    let out = form.payload_template || '';
+    for (const tok of tokens) {
+      const v = merged[tok];
+      out = out.split(`[${tok}]`).join(v !== undefined && v !== '' ? String(v) : `[${tok}]`);
+    }
+    try { setGenerated(JSON.stringify(JSON.parse(out), null, 2)); } catch { setGenerated(out); }
+    setSendResult(null);
+    toast.success(`${matched} of ${tokens.length} tokens populated`);
+  };
 
   const saveMutation = useMutation({
     mutationFn: async (data) => {
@@ -234,6 +301,20 @@ export default function PayloadTester() {
                   placeholder={SAMPLE_TEMPLATE}
                   className="bg-background font-mono text-[12px] min-h-[220px] leading-relaxed mt-1"
                 />
+              </div>
+
+              <div>
+                <Label className="text-[12px]">Sample Data</Label>
+                <p className="text-[11px] text-muted-foreground mt-0.5">Paste lead data as <code className="text-primary">Label: value</code> pairs — labels auto-match to the tokens above.</p>
+                <Textarea
+                  value={sampleData}
+                  onChange={e => setSampleData(e.target.value)}
+                  placeholder={"First Name: Frederik, Last Name: Wright, Email: thepitt90@gmail.com, Mobiles: 918-418-6497, Accident State: OK, Zip: 73111, Accident Details: Driver followed too closely"}
+                  className="bg-background font-mono text-[12px] min-h-[110px] mt-1"
+                />
+                <Button onClick={populatePayload} variant="secondary" className="mt-2 gap-1.5">
+                  <Wand2 className="w-4 h-4" /> Populate Payload
+                </Button>
               </div>
 
               {tokens.length > 0 && (
