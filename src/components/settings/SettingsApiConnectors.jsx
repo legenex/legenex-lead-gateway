@@ -19,7 +19,7 @@ import ConnectorConditionsEditor from '@/components/settings/ConnectorConditions
 import ConnectorFilterPanel from '@/components/settings/ConnectorFilterPanel';
 import { HighlightedPayloadEditor } from '@/components/settings/HighlightedPayloadEditor';
 import { buildTriggerOptions, statusLabelFor } from '@/lib/leadStatus';
-import { Plus, Save, Trash2, Play, Loader2, Eye, EyeOff, Zap, Globe, Copy } from 'lucide-react';
+import { Plus, Save, Trash2, Play, Loader2, Eye, EyeOff, Zap, Globe, Copy, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const KIND_OPTIONS = [
@@ -32,6 +32,16 @@ function parseJsonArray(val) {
   if (!val) return [];
   if (Array.isArray(val)) return val;
   try { const p = JSON.parse(val); return Array.isArray(p) ? p : []; } catch { return []; }
+}
+
+// Re-format a JSON template string with proper indentation.
+function beautifyJson(str, setter) {
+  try {
+    const parsed = JSON.parse(str);
+    setter(JSON.stringify(parsed, null, 2));
+  } catch {
+    toast.error('Invalid JSON — fix syntax first');
+  }
 }
 
 const DEFAULT_TEST_PAYLOAD = {
@@ -79,7 +89,8 @@ const DEFAULT_CAPI_TEMPLATE = JSON.stringify({
       qualification_status: "{{qualification_status}}",
       event_category: "{{event_category}}",
       lead_event_type: "{{lead_event_type}}",
-      value: "{{value}}"
+      value: "{{value}}",
+      currency: "USD"
     }
   }]
 }, null, 2);
@@ -421,7 +432,7 @@ export default function SettingsApiConnectors() {
         {isCapi && (
           <Card className="bg-card border-border">
             <CardContent className="p-4 space-y-3">
-              <div className="text-[13px] font-semibold text-foreground">Per-Trigger Custom Data</div>
+              <div className="text-[13px] font-semibold text-foreground">Event Custom Data</div>
               <p className="text-[11px] text-muted-foreground">Each value here becomes a token in the template below — Content Name is <code className="text-primary">{'{{content_name}}'}</code>, Value is <code className="text-primary">{'{{value}}'}</code>, etc. The template pulls the matching value for whichever trigger fires, so each trigger can send different values. To use a static value instead, replace the token in the template with literal text. Values support {'{{conv_value}}'}, {'{{revenue}}'} and any lead field token.</p>
               <TriggerDataOverrides
                 value={editing.trigger_data_overrides || '{}'}
@@ -456,7 +467,6 @@ export default function SettingsApiConnectors() {
                 <div><Label className="text-[12px]">Test Event Code (optional)</Label><Input value={editing.fb_test_event_code || ''} onChange={e => setF('fb_test_event_code', e.target.value)} className="mt-1 bg-background font-mono text-[12px]" /></div>
                 <div><Label className="text-[12px]">API Version</Label><Input value={editing.fb_api_version || 'v21.0'} onChange={e => setF('fb_api_version', e.target.value)} className="mt-1 bg-background font-mono text-[12px]" /></div>
               </div>
-              <div><Label className="text-[12px]">Action Source</Label><Input value={editing.action_source || 'website'} onChange={e => setF('action_source', e.target.value)} className="mt-1 bg-background" /></div>
               <div className="flex items-center gap-2 pt-1 border-t border-border">
                 <Switch checked={editing.auto_hash_capi !== false} onCheckedChange={v => setF('auto_hash_capi', v)} />
                 <Label className="text-[12px]">Auto Hash Facebook CAPI Fields</Label>
@@ -465,7 +475,10 @@ export default function SettingsApiConnectors() {
 
               {/* Send Test Event */}
               <div className="pt-2 border-t border-border space-y-3">
-                <div className="text-[12px] font-semibold text-muted-foreground uppercase tracking-wider">CAPI Payload Template (test resolves tokens with sample data)</div>
+                <div className="flex items-center justify-between">
+                  <div className="text-[12px] font-semibold text-muted-foreground uppercase tracking-wider">CAPI Payload Template (test resolves tokens with sample data)</div>
+                  <Button size="sm" variant="outline" onClick={() => beautifyJson(testPayloadStr, setTestPayloadStr)} className="gap-1.5 h-7 text-[11px]"><Wand2 className="w-3.5 h-3.5" /> Beautify</Button>
+                </div>
                 <div className="grid grid-cols-1 lg:grid-cols-[1fr_200px] gap-3">
                   <HighlightedPayloadEditor value={testPayloadStr} onChange={setTestPayloadStr} minHeight={340} />
                   <Card className="bg-card border-border max-h-[340px] overflow-y-auto">
@@ -530,7 +543,10 @@ export default function SettingsApiConnectors() {
               </div>
               {/* Payload Template */}
               <div className="space-y-2">
-                <Label className="text-[12px] block">Payload Template (JSON with {'{{token}}'} placeholders)</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-[12px]">Payload Template (JSON with {'{{token}}'} placeholders)</Label>
+                  <Button size="sm" variant="outline" onClick={() => beautifyJson(editing.payload_template || '{}', v => setF('payload_template', v))} className="gap-1.5 h-7 text-[11px]"><Wand2 className="w-3.5 h-3.5" /> Beautify</Button>
+                </div>
                 <div className="grid grid-cols-1 lg:grid-cols-[1fr_200px] gap-3">
                   <HighlightedPayloadEditor value={editing.payload_template || '{}'} onChange={v => setF('payload_template', v)} minHeight={200} />
                   <Card className="bg-card border-border max-h-[200px] overflow-y-auto">

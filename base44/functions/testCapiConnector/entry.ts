@@ -37,7 +37,8 @@ const DEFAULT_CAPI_TEMPLATE = JSON.stringify({
       qualification_status: "{{qualification_status}}",
       event_category: "{{event_category}}",
       lead_event_type: "{{lead_event_type}}",
-      value: "{{value}}"
+      value: "{{value}}",
+      currency: "USD"
     }
   }]
 }, null, 2);
