@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ChevronDown, ChevronRight } from 'lucide-react';
 
 function parseMap(v) {
   try {
@@ -36,7 +35,6 @@ const VALUE_HINT = {
 // selectedTriggers: array of { value: 'on_received', label: 'Qualified' } — only these are shown.
 export default function TriggerDataOverrides({ value, onChange, selectedTriggers }) {
   const map = parseMap(value);
-  const [open, setOpen] = useState({});
 
   const setField = (trigger, key, val) => {
     const next = { ...map, [trigger]: { ...(map[trigger] || {}), [key]: val } };
@@ -48,45 +46,31 @@ export default function TriggerDataOverrides({ value, onChange, selectedTriggers
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       {selectedTriggers.map(({ value: trig, label }) => {
         const trigMap = map[trig] || {};
         const valueHint = VALUE_HINT[trig];
-        const isOpen = !!open[trig];
         return (
-          <div key={trig} className="border border-border rounded-lg bg-background/40">
-            <button
-              type="button"
-              onClick={() => setOpen(p => ({ ...p, [trig]: !p[trig] }))}
-              className="flex items-center justify-between w-full p-2.5 text-left"
-            >
-              <span className="flex items-center gap-1.5">
-                {isOpen
-                  ? <ChevronDown className="w-3.5 h-3.5 text-primary" />
-                  : <ChevronRight className="w-3.5 h-3.5 text-primary" />}
-                <span className="text-[12px] font-semibold text-primary">{label}</span>
-              </span>
+          <div key={trig} className="border border-border rounded-lg p-3 bg-background/40">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[12px] font-semibold text-primary">{label}</span>
               {valueHint && (
                 <span className="text-[10px] text-muted-foreground">value hint: <code className="text-primary">{valueHint}</code></span>
               )}
-            </button>
-            {isOpen && (
-              <div className="px-3 pb-3">
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-x-3 gap-y-2">
-                  {STANDARD_FIELDS.map(f => (
-                    <div key={f.key}>
-                      <Label className="text-[10px] text-muted-foreground">{f.label}</Label>
-                      <Input
-                        value={trigMap[f.key] ?? ''}
-                        onChange={e => setField(trig, f.key, e.target.value)}
-                        placeholder={f.key === 'value' ? (valueHint || f.placeholder) : f.placeholder}
-                        className="bg-background font-mono text-[11px] h-8 mt-0.5"
-                      />
-                    </div>
-                  ))}
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-x-3 gap-y-2">
+              {STANDARD_FIELDS.map(f => (
+                <div key={f.key}>
+                  <Label className="text-[10px] text-muted-foreground">{f.label}</Label>
+                  <Input
+                    value={trigMap[f.key] ?? ''}
+                    onChange={e => setField(trig, f.key, e.target.value)}
+                    placeholder={f.key === 'value' ? (valueHint || f.placeholder) : f.placeholder}
+                    className="bg-background font-mono text-[11px] h-8 mt-0.5"
+                  />
                 </div>
-              </div>
-            )}
+              ))}
+            </div>
           </div>
         );
       })}
