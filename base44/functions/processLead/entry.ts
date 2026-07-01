@@ -1220,9 +1220,11 @@ Deno.serve(async (req) => {
 
     // ── e. ROUTE: direct / event bypass LeadByte ────────────────────────
     if (!routeIs.standard) {
-      fireConnectors(db, apiConnectors, 'on_sold', leadPayload, leadId, supplierAttribution, supplierRecord);
+      // Inject revenue (0 for direct/event routes) so {{revenue}} resolves in CAPI custom_data.
+      const soldData = { ...leadPayload, revenue: 0 };
+      fireConnectors(db, apiConnectors, 'on_sold', soldData, leadId, supplierAttribution, supplierRecord);
       if (!routeIs.event) {
-        fireDeliveries(db, allDestinations, 'on_sold', leadPayload, leadId, supplierAttribution, supplierRecord);
+        fireDeliveries(db, allDestinations, 'on_sold', soldData, leadId, supplierAttribution, supplierRecord);
       }
       const soldResponse = { Response: 'Sold' };
       await db.entities.Lead.update(leadId, {
@@ -1342,9 +1344,11 @@ Deno.serve(async (req) => {
           await db.entities.Lead.update(leadId, { revenue: capturedRevenue });
         }
 
-        // Fire on_sold connectors (fire-and-forget)
-        fireConnectors(db, apiConnectors, 'on_sold', leadPayload, leadId, supplierAttribution, supplierRecord);
-        fireDeliveries(db, allDestinations, 'on_sold', leadPayload, leadId, supplierAttribution, supplierRecord);
+        // Fire on_sold connectors (fire-and-forget). Inject captured revenue so
+        // {{revenue}} resolves in CAPI custom_data for the Sold event.
+        const soldData = { ...leadPayload, revenue: capturedRevenue != null ? capturedRevenue : 0 };
+        fireConnectors(db, apiConnectors, 'on_sold', soldData, leadId, supplierAttribution, supplierRecord);
+        fireDeliveries(db, allDestinations, 'on_sold', soldData, leadId, supplierAttribution, supplierRecord);
       } else if (recordStatus === 'Rejected') {
         // ── f. Rejected => check for queueable patterns ─────────────────
         const rejectionReason = recordResponse.message || recordResponse.reason || recordResponse.error || record.error || record.response_message || '';

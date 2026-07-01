@@ -419,7 +419,7 @@ export default function SettingsApiConnectors() {
           <Card className="bg-card border-border">
             <CardContent className="p-4 space-y-3">
               <div className="text-[13px] font-semibold text-foreground">Per-Trigger Custom Data</div>
-              <p className="text-[11px] text-muted-foreground">Override custom_data fields per trigger type so each event (Disqualified, Qualified, Sold…) can carry different values. Values support {'{{tokens}}'} (e.g. {'{{conv_value}}'}). Empty triggers use the template's custom_data as-is.</p>
+              <p className="text-[11px] text-muted-foreground">Set the custom_data values sent with each trigger's event (Disqualified, Qualified, Sold…). Each box overrides the template's default for that trigger only — leave a field blank to use the template value. Values support {'{{tokens}}'} like {'{{conv_value}}'} or {'{{revenue}}'}.</p>
               <TriggerDataOverrides
                 value={editing.trigger_data_overrides || '{}'}
                 onChange={v => setF('trigger_data_overrides', v)}
