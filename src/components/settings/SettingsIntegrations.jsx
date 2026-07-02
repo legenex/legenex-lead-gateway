@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { integrationStatus as fetchIntegrationStatus } from '@/functions/integrationStatus';
 import { sendWhatsapp } from '@/functions/sendWhatsapp';
+import { sendGmail } from '@/functions/sendGmail';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -34,6 +35,12 @@ export default function SettingsIntegrations() {
   const [waSaving, setWaSaving] = useState(false);
   const [waSending, setWaSending] = useState(false);
   const [waLoading, setWaLoading] = useState(false);
+
+  const [gmOpen, setGmOpen] = useState(false);
+  const [gmFrom, setGmFrom] = useState('');
+  const [gmTest, setGmTest] = useState({ to: '', subject: 'Test from Legenex', body: 'This is a test email sent from Legenex.' });
+  const [gmSending, setGmSending] = useState(false);
+  const [gmLoading, setGmLoading] = useState(false);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['integration-status'],
@@ -102,9 +109,48 @@ export default function SettingsIntegrations() {
     setWaSending(false);
   };
 
+  const openGmail = async () => {
+    setGmOpen(true);
+    setGmLoading(true);
+    setGmFrom('');
+    try {
+      const res = await sendGmail({});
+      const d = res?.data || {};
+      if (d.connected) setGmFrom(d.from || '');
+    } catch {
+      setGmFrom('');
+    }
+    setGmLoading(false);
+  };
+
+  const sendGmailTest = async () => {
+    if (!gmTest.to?.trim()) {
+      toast.error('Enter a recipient email address');
+      return;
+    }
+    setGmSending(true);
+    try {
+      const res = await sendGmail({ to: gmTest.to, subject: gmTest.subject, body: gmTest.body });
+      const d = res?.data || {};
+      if (d.success) {
+        toast.success(`Email sent from ${d.from || 'Gmail'}`);
+        if (d.from) setGmFrom(d.from);
+      } else {
+        toast.error(d.error || 'Send failed');
+      }
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Send failed — is Gmail connected?');
+    }
+    setGmSending(false);
+  };
+
   const handleConnect = (it) => {
     if (it.custom && it.type === 'whatsapp') {
       openWhatsapp();
+      return;
+    }
+    if (it.type === 'gmail') {
+      openGmail();
       return;
     }
     setPending(it);
@@ -195,6 +241,61 @@ export default function SettingsIntegrations() {
             <Button onClick={() => { setPending(null); refetch(); qc.invalidateQueries({ queryKey: ['integration-status'] }); }}>
               <Plug className="w-4 h-4" /> Refresh status
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Gmail management — status + send a test email via the connected account */}
+      <Dialog open={gmOpen} onOpenChange={setGmOpen}>
+        <DialogContent className="bg-popover border-border max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Manage Gmail</DialogTitle>
+            <DialogDescription>Send a test email from your connected Gmail account.</DialogDescription>
+          </DialogHeader>
+          {gmLoading ? (
+            <div className="py-6 text-center text-muted-foreground text-[13px]">Loading…</div>
+          ) : gmFrom ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-[12px]">
+                <CheckCircle2 className="w-4 h-4 status-sold" />
+                <span className="status-sold font-medium">Connected</span>
+                <span className="text-muted-foreground">· {gmFrom}</span>
+              </div>
+              <div className="border-t border-border pt-4">
+                <div className="text-[12px] font-medium text-foreground mb-2">Send a test email</div>
+                <div className="space-y-2">
+                  <Input
+                    value={gmTest.to}
+                    onChange={(e) => setGmTest((p) => ({ ...p, to: e.target.value }))}
+                    placeholder="To, e.g. you@example.com"
+                    className="bg-background font-mono text-[12px]"
+                  />
+                  <Input
+                    value={gmTest.subject}
+                    onChange={(e) => setGmTest((p) => ({ ...p, subject: e.target.value }))}
+                    placeholder="Subject"
+                    className="bg-background text-[13px]"
+                  />
+                  <Input
+                    value={gmTest.body}
+                    onChange={(e) => setGmTest((p) => ({ ...p, body: e.target.value }))}
+                    placeholder="Message body"
+                    className="bg-background text-[13px]"
+                  />
+                  <Button size="sm" onClick={sendGmailTest} disabled={gmSending} className="gap-1.5">
+                    <Send className="w-3.5 h-3.5" /> {gmSending ? 'Sending…' : 'Send test'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-[13px] text-muted-foreground leading-relaxed">
+              Gmail isn't connected yet. Connection is a one-time OAuth grant — authorise the Gmail connector, then
+              you'll be able to send test emails from here.
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setGmOpen(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
