@@ -25,7 +25,7 @@ export default function Settings() {
         <PageHeader title="Settings" subtitle="General settings, users, API keys, custom fields, error logs, and adaptive fields" />
       </div>
       <Tabs value={tab} onValueChange={setTab} className="flex-1 min-h-0 flex flex-col">
-        <TabsList className="bg-muted mb-4 shrink-0">
+        <TabsList className="bg-muted mb-4 shrink-0 self-start">
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="apikeys">API Keys</TabsTrigger>

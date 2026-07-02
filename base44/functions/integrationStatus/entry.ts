@@ -25,6 +25,13 @@ Deno.serve(async (req) => {
         status[type] = false;
       }
     }
+    try {
+      const wc = await base44.asServiceRole.entities.IntegrationConfig.filter({ name: 'whatsapp' });
+      status['whatsapp'] = !!wc[0];
+    } catch {
+      status['whatsapp'] = false;
+    }
+
     return Response.json({ status });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
