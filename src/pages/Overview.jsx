@@ -7,7 +7,7 @@ import StatCard from '@/components/overview/StatCard';
 import HealthStrip from '@/components/overview/HealthStrip';
 import StatusPill from '@/components/shared/StatusPill';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Percent, AlertTriangle, Clock, Copy, Inbox, Zap, Calendar, CalendarDays, Database } from 'lucide-react';
+import { Percent, AlertTriangle, Clock, Copy, Inbox, Zap, Calendar, CalendarDays, Database, DollarSign } from 'lucide-react';
 import RefreshButton from '@/components/shared/RefreshButton';
 import { toast } from 'sonner';
 import { format, subDays, startOfDay, startOfWeek, startOfMonth, isAfter } from 'date-fns';
@@ -65,6 +65,14 @@ export default function Overview() {
   });
   const todayTrend = leadsYesterday.length > 0 
     ? Math.round(((leadsToday.length - leadsYesterday.length) / leadsYesterday.length) * 100) 
+    : null;
+
+  const sumRevenue = (arr) => arr.reduce((s, l) => s + (Number(l.revenue) || 0), 0);
+  const totalRevenue = sumRevenue(leads);
+  const revenueToday = sumRevenue(leadsToday);
+  const revenueYesterday = sumRevenue(leadsYesterday);
+  const revenueTrend = revenueYesterday > 0
+    ? Math.round(((revenueToday - revenueYesterday) / revenueYesterday) * 100)
     : null;
 
   const soldLeads = leads.filter(l => l.final_status === 'Sold');
@@ -190,7 +198,8 @@ export default function Overview() {
       })()}
 
       {/* KPI Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mt-6">
+        <KpiCard label="Revenue" value={`$${totalRevenue.toFixed(2)}`} trend={revenueTrend} trendLabel="vs yesterday" icon={DollarSign} />
         <KpiCard label="Leads Today" value={leadsToday.length} trend={todayTrend} trendLabel="vs yesterday" icon={Inbox} />
         <KpiCard label="This Week" value={leadsWeek.length} icon={CalendarDays} />
         <KpiCard label="This Month" value={leadsMonth.length} icon={Calendar} />

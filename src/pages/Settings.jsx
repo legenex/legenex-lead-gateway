@@ -7,6 +7,8 @@ import SettingsApiKeys from '@/components/settings/SettingsApiKeys';
 import SettingsCustomFields from '@/components/settings/SettingsCustomFields';
 import SettingsGeneral from '@/components/settings/SettingsGeneral';
 import SettingsIgnoreList from '@/components/settings/SettingsIgnoreList';
+import SettingsIntegrations from '@/components/settings/SettingsIntegrations';
+import SettingsNotifications from '@/components/settings/SettingsNotifications';
 import ErrorLogs from '@/pages/ErrorLogs';
 
 export default function Settings() {
@@ -25,6 +27,8 @@ export default function Settings() {
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="apikeys">API Keys</TabsTrigger>
+          <TabsTrigger value="integrations">Integrations</TabsTrigger>
+          <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="fields">Custom Fields</TabsTrigger>
           <TabsTrigger value="errors">Error Logs</TabsTrigger>
           <TabsTrigger value="adaptive">Adaptive Fields</TabsTrigger>
@@ -32,6 +36,8 @@ export default function Settings() {
         <TabsContent value="general"><SettingsGeneral /></TabsContent>
         <TabsContent value="users"><SettingsUsers /></TabsContent>
         <TabsContent value="apikeys"><SettingsApiKeys /></TabsContent>
+        <TabsContent value="integrations"><SettingsIntegrations /></TabsContent>
+        <TabsContent value="notifications"><SettingsNotifications /></TabsContent>
         <TabsContent value="fields"><SettingsCustomFields /></TabsContent>
         <TabsContent value="errors"><ErrorLogs embedded /></TabsContent>
         <TabsContent value="adaptive"><SettingsIgnoreList /></TabsContent>
