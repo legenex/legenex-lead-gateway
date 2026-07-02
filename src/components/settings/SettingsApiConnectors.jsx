@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
+import { sortByOrder, nextSortOrder } from '@/lib/reorder';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,7 +23,7 @@ import ConnectorFilterPanel from '@/components/settings/ConnectorFilterPanel';
 import { HighlightedPayloadEditor } from '@/components/settings/HighlightedPayloadEditor';
 import { buildTriggerOptions, statusLabelFor } from '@/lib/leadStatus';
 import { verticalColor, triggerTagClass, TAG_NEUTRAL } from '@/lib/tagColors';
-import { Plus, Save, Trash2, Play, Loader2, Eye, EyeOff, Zap, Globe, Copy } from 'lucide-react';
+import { Plus, Save, Trash2, Play, Loader2, Eye, EyeOff, Zap, Globe, Copy, GripVertical, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 
 const KIND_OPTIONS = [
@@ -221,11 +224,16 @@ export default function SettingsApiConnectors() {
     { value: 'Calls', label: 'Calls' },
   ];
 
+  const reorderMutation = useMutation({
+    mutationFn: async (updates) => base44.entities.ApiConnector.bulkUpdate(updates),
+    onError: () => qc.invalidateQueries({ queryKey: ['api-connectors'] }),
+  });
+
   const openCreate = () => {
     const platform = PLATFORMS.find(p => p.value === activePlatform) || PLATFORMS[0];
     const isCapi = platform.kind === 'facebook_capi';
     setEditing({
-      name: '', platform: platform.value, kind: platform.kind, enabled: true, sort_order: 0,
+      name: '', platform: platform.value, kind: platform.kind, enabled: true, sort_order: nextSortOrder(connectors),
       filter_brands: '[]', filter_verticals: '[]', filter_suppliers: '[]', filter_supplier_types: '[]', filter_conditions: '[]',
       fb_pixel_id: '', fb_access_token: '', fb_test_event_code: '', fb_api_version: 'v21.0',
       received_event_name: '', sold_event_name: '', unsold_event_name: '', queued_event_name: '', dq_event_name: '', rejected_event_name: '', duplicates_event_name: '',
@@ -342,23 +350,8 @@ export default function SettingsApiConnectors() {
 
         <Card className="bg-card border-border">
           <CardContent className="p-4 space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-[1fr_1fr_auto] gap-3 items-end">
               <div><Label className="text-[12px]">Name *</Label><Input value={editing.name || ''} onChange={e => setF('name', e.target.value)} className="mt-1 bg-background" /></div>
-              <div>
-                <Label className="text-[12px]">Kind</Label>
-                <SearchableSelect
-                  value={editing.kind || 'facebook_capi'}
-                  onValueChange={v => setF('kind', v)}
-                  className="mt-1 bg-background"
-                  options={KIND_OPTIONS}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div><Label className="text-[12px]">Sort Order</Label><Input type="number" value={editing.sort_order || 0} onChange={e => setF('sort_order', Number(e.target.value))} className="mt-1 bg-background" /></div>
-              <div className="flex items-end pb-2">
-                <div className="flex items-center gap-2"><Switch checked={editing.enabled} onCheckedChange={v => setF('enabled', v)} /><Label className="text-[12px]">Enabled</Label></div>
-              </div>
               <div>
                 <Label className="text-[12px]">Vertical</Label>
                 <SearchableSelect
@@ -368,6 +361,10 @@ export default function SettingsApiConnectors() {
                   placeholder="All verticals"
                   options={[{ value: '', label: 'All verticals' }, ...verticalOptions]}
                 />
+              </div>
+              <div className="flex items-center gap-2 pb-2">
+                <Switch checked={editing.enabled} onCheckedChange={v => setF('enabled', v)} />
+                <Label className="text-[12px]">Enabled</Label>
               </div>
             </div>
           </CardContent>
@@ -418,19 +415,25 @@ export default function SettingsApiConnectors() {
           </CardContent>
         </Card>
 
-        {/* Per-Trigger Custom Data */}
+        {/* Event Custom Data — collapsible to save space */}
         {isCapi && (
-          <Card className="bg-card border-border">
-            <CardContent className="p-4 space-y-3">
-              <div className="text-[13px] font-semibold text-foreground">Per-Trigger Custom Data</div>
+          <Collapsible className="bg-card border border-border rounded-[10px]">
+            <CollapsibleTrigger className="w-full flex items-center justify-between p-4 hover:bg-accent/40">
+              <div className="text-left">
+                <div className="text-[13px] font-semibold text-foreground">Event Custom Data</div>
+                <div className="text-[11px] text-muted-foreground">Per-trigger custom_data values injected into the payload template.</div>
+              </div>
+              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="px-4 pb-4 space-y-3">
               <p className="text-[11px] text-muted-foreground">Each value here becomes a token in the template below — Content Name is <code className="text-primary">{'{{content_name}}'}</code>, Value is <code className="text-primary">{'{{value}}'}</code>, etc. The template pulls the matching value for whichever trigger fires, so each trigger can send different values. To use a static value instead, replace the token in the template with literal text. Values support {'{{conv_value}}'}, {'{{revenue}}'} and any lead field token.</p>
               <TriggerDataOverrides
                 value={editing.trigger_data_overrides || '{}'}
                 onChange={v => setF('trigger_data_overrides', v)}
                 selectedTriggers={triggerOptions.filter(t => parseJsonArray(editing.triggers).includes(t.value))}
               />
-            </CardContent>
-          </Card>
+            </CollapsibleContent>
+          </Collapsible>
         )}
 
         {/* Facebook CAPI fields */}
@@ -457,7 +460,6 @@ export default function SettingsApiConnectors() {
                 <div><Label className="text-[12px]">Test Event Code (optional)</Label><Input value={editing.fb_test_event_code || ''} onChange={e => setF('fb_test_event_code', e.target.value)} className="mt-1 bg-background font-mono text-[12px]" /></div>
                 <div><Label className="text-[12px]">API Version</Label><Input value={editing.fb_api_version || 'v21.0'} onChange={e => setF('fb_api_version', e.target.value)} className="mt-1 bg-background font-mono text-[12px]" /></div>
               </div>
-              <div><Label className="text-[12px]">Action Source</Label><Input value={editing.action_source || 'website'} onChange={e => setF('action_source', e.target.value)} className="mt-1 bg-background" /></div>
               <div className="flex items-center gap-2 pt-1 border-t border-border">
                 <Switch checked={editing.auto_hash_capi !== false} onCheckedChange={v => setF('auto_hash_capi', v)} />
                 <Label className="text-[12px]">Auto Hash Facebook CAPI Fields</Label>
@@ -565,7 +567,19 @@ export default function SettingsApiConnectors() {
     if (filter === 'other') return triggers.includes('on_unsold') || triggers.includes('on_queued');
     return true;
   };
-  const filtered = connectors.filter(conn => effectivePlatform(conn) === activePlatform && matchesStatus(conn, statusFilter));
+  const sortedConnectors = sortByOrder(connectors);
+  const filtered = sortedConnectors.filter(conn => effectivePlatform(conn) === activePlatform && matchesStatus(conn, statusFilter));
+
+  function onDragEnd(result) {
+    if (!result.destination || result.destination.index === result.source.index) return;
+    const ordered = [...filtered];
+    const [moved] = ordered.splice(result.source.index, 1);
+    ordered.splice(result.destination.index, 0, moved);
+    const updates = ordered.map((c, idx) => ({ id: c.id, sort_order: idx + 1 }));
+    const idToOrder = Object.fromEntries(updates.map(u => [u.id, u.sort_order]));
+    qc.setQueryData(['api-connectors'], sortByOrder(connectors.map(c => idToOrder[c.id] ? { ...c, sort_order: idToOrder[c.id] } : c)));
+    reorderMutation.mutate(updates);
+  }
 
   return (
     <div>
@@ -603,68 +617,83 @@ export default function SettingsApiConnectors() {
         <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" /> Add Connector</Button>
       </div>
 
-      <div className="space-y-3">
-        {filtered.length === 0 && <div className="text-center py-8 text-muted-foreground text-[13px]">No connectors for this platform</div>}
-        {filtered.map(conn => {
-          const triggers = parseJsonArray(conn.triggers);
-          const brands = parseJsonArray(conn.filter_brands);
-          const verticals = parseJsonArray(conn.filter_verticals);
-          const suppliersFiltered = parseJsonArray(conn.filter_suppliers);
-          const types = parseJsonArray(conn.filter_supplier_types);
-          const isCapi = conn.kind === 'facebook_capi';
-          return (
-            <Card key={conn.id} className="bg-card border-border">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[14px] font-medium text-foreground">{conn.name}</span>
-                      {isCapi ? <Zap className="w-3.5 h-3.5 text-primary" /> : <Globe className="w-3.5 h-3.5 text-muted-foreground" />}
-                      <Badge variant="outline" className="text-[10px]">{KIND_OPTIONS.find(k => k.value === conn.kind)?.label || conn.kind}</Badge>
-                      {verticals.length > 0 ? (
-                        (() => {
-                          const vc = verticalColor(verticals[0]);
-                          return (
-                            <Badge className={`text-[10px] font-semibold inline-flex items-center gap-1 ${vc.badge}`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${vc.dot}`} />
-                              {verticals.map(code => verticalList.find(v => v.code === code)?.name || code).join(', ')}
-                            </Badge>
-                          );
-                        })()
-                      ) : (
-                        <Badge variant="outline" className="text-[10px] text-muted-foreground">All Verticals</Badge>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {triggers.map(t => <Badge key={t} className={`text-[9px] ${triggerTagClass(t)}`}>{statusLabelFor(t)}</Badge>)}
-                      {brands.length > 0 && <Badge className={`text-[9px] ${TAG_NEUTRAL}`}>Brands: {brands.join(', ')}</Badge>}
-                      {suppliersFiltered.length > 0 && <Badge className={`text-[9px] ${TAG_NEUTRAL}`}>Suppliers: {suppliersFiltered.length}</Badge>}
-                      {types.length > 0 && <Badge className={`text-[9px] ${TAG_NEUTRAL}`}>Types: {types.join(', ')}</Badge>}
-                      {parseJsonArray(conn.filter_conditions).map((c, i) => (
-                        <Badge key={i} className={`text-[9px] ${TAG_NEUTRAL}`}>{c.field} {c.operator} {c.value || ''}</Badge>
-                      ))}
-                      {brands.length === 0 && suppliersFiltered.length === 0 && types.length === 0 && parseJsonArray(conn.filter_conditions).length === 0 && <Badge className={`text-[9px] ${TAG_NEUTRAL}`}>All leads</Badge>}
-                    </div>
-                    {isCapi && <div className="font-mono text-[11px] text-muted-foreground mt-1">Pixel: {conn.fb_pixel_id || 'not set'}</div>}
-                    {!isCapi && <div className="font-mono text-[11px] text-muted-foreground mt-1 truncate max-w-[400px]">{conn.target_url || 'not set'}</div>}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className={conn.enabled ? 'status-sold bg-status-sold' : 'text-muted-foreground'}>
-                      {conn.enabled ? 'Active' : 'Disabled'}
-                    </Badge>
-                    <Button size="sm" variant="ghost" onClick={() => openEdit(conn)}>Edit</Button>
-                    <Button size="sm" variant="ghost" onClick={() => duplicateConnector(conn)} className="gap-1 text-[11px]"><Copy className="w-3 h-3" /> Duplicate</Button>
-                    <Button size="sm" variant="ghost" onClick={() => toggleEnabled(conn)} className="text-[11px]">
-                      {conn.enabled ? 'Disable' : 'Enable'}
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => deleteConnector(conn.id)} className="h-7 w-7 p-0 text-destructive"><Trash2 className="w-3.5 h-3.5" /></Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+      <DragDropContext onDragEnd={onDragEnd}>
+        <Droppable droppableId="connectors">
+          {(provided) => (
+            <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-3">
+              {filtered.length === 0 && <div className="text-center py-8 text-muted-foreground text-[13px]">No connectors for this platform</div>}
+              {filtered.map((conn, index) => {
+                const triggers = parseJsonArray(conn.triggers);
+                const brands = parseJsonArray(conn.filter_brands);
+                const verticals = parseJsonArray(conn.filter_verticals);
+                const suppliersFiltered = parseJsonArray(conn.filter_suppliers);
+                const types = parseJsonArray(conn.filter_supplier_types);
+                const isCapi = conn.kind === 'facebook_capi';
+                return (
+                  <Draggable key={conn.id} draggableId={conn.id} index={index}>
+                    {(prov) => (
+                      <Card ref={prov.innerRef} {...prov.draggableProps} className="bg-card border-border">
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-start gap-2 min-w-0">
+                              <div {...prov.dragHandleProps} className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground pt-1 shrink-0">
+                                <GripVertical className="w-4 h-4" />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[14px] font-medium text-foreground">{conn.name}</span>
+                                  {isCapi ? <Zap className="w-3.5 h-3.5 text-primary" /> : <Globe className="w-3.5 h-3.5 text-muted-foreground" />}
+                                  {verticals.length > 0 ? (
+                                    (() => {
+                                      const vc = verticalColor(verticals[0]);
+                                      return (
+                                        <Badge className={`text-[10px] font-semibold inline-flex items-center gap-1 ${vc.badge}`}>
+                                          <span className={`w-1.5 h-1.5 rounded-full ${vc.dot}`} />
+                                          {verticals.map(code => verticalList.find(v => v.code === code)?.name || code).join(', ')}
+                                        </Badge>
+                                      );
+                                    })()
+                                  ) : (
+                                    <Badge variant="outline" className="text-[10px] text-muted-foreground">All Verticals</Badge>
+                                  )}
+                                </div>
+                                <div className="flex flex-wrap gap-1.5 mt-2">
+                                  {triggers.map(t => <Badge key={t} className={`text-[9px] ${triggerTagClass(t)}`}>{statusLabelFor(t)}</Badge>)}
+                                  {brands.length > 0 && <Badge className={`text-[9px] ${TAG_NEUTRAL}`}>Brands: {brands.join(', ')}</Badge>}
+                                  {suppliersFiltered.length > 0 && <Badge className={`text-[9px] ${TAG_NEUTRAL}`}>Suppliers: {suppliersFiltered.length}</Badge>}
+                                  {types.length > 0 && <Badge className={`text-[9px] ${TAG_NEUTRAL}`}>Types: {types.join(', ')}</Badge>}
+                                  {parseJsonArray(conn.filter_conditions).map((c, i) => (
+                                    <Badge key={i} className={`text-[9px] ${TAG_NEUTRAL}`}>{c.field} {c.operator} {c.value || ''}</Badge>
+                                  ))}
+                                  {brands.length === 0 && suppliersFiltered.length === 0 && types.length === 0 && parseJsonArray(conn.filter_conditions).length === 0 && <Badge className={`text-[9px] ${TAG_NEUTRAL}`}>All leads</Badge>}
+                                </div>
+                                {isCapi && <div className="font-mono text-[11px] text-muted-foreground mt-1">Pixel: {conn.fb_pixel_id || 'not set'}</div>}
+                                {!isCapi && <div className="font-mono text-[11px] text-muted-foreground mt-1 truncate max-w-[400px]">{conn.target_url || 'not set'}</div>}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <Badge variant="outline" className={conn.enabled ? 'status-sold bg-status-sold' : 'text-muted-foreground'}>
+                                {conn.enabled ? 'Active' : 'Disabled'}
+                              </Badge>
+                              <Button size="sm" variant="ghost" onClick={() => openEdit(conn)}>Edit</Button>
+                              <Button size="sm" variant="ghost" onClick={() => duplicateConnector(conn)} className="gap-1 text-[11px]"><Copy className="w-3 h-3" /> Duplicate</Button>
+                              <Button size="sm" variant="ghost" onClick={() => toggleEnabled(conn)} className="text-[11px]">
+                                {conn.enabled ? 'Disable' : 'Enable'}
+                              </Button>
+                              <Button size="sm" variant="ghost" onClick={() => deleteConnector(conn.id)} className="h-7 w-7 p-0 text-destructive"><Trash2 className="w-3.5 h-3.5" /></Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </Draggable>
+                );
+              })}
+              {provided.placeholder}
+            </div>
+          )}
+        </Droppable>
+      </DragDropContext>
       </>
       )}
     </div>

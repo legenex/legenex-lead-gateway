@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Plus, Save, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { brandColor } from '@/lib/tagColors';
 
 const DEFAULT_FORM = {
   brand_name: '', brand_code: '', website_url: '', optin_url: '', active: true,
@@ -92,7 +93,7 @@ export default function SettingsBrands() {
             {brands.map(b => (
               <tr key={b.id} className="hover:bg-accent/40 transition-colors">
                 <td className="px-4 py-3 font-medium text-foreground">{b.brand_name}</td>
-                <td className="px-4 py-3"><Badge variant="outline" className="text-[10px] font-mono">{b.brand_code}</Badge></td>
+                <td className="px-4 py-3"><Badge className={`text-[10px] font-mono ${brandColor(b.brand_code).badge}`}>{b.brand_code}</Badge></td>
                 <td className="px-4 py-3 font-mono text-[11px] text-muted-foreground truncate max-w-[200px]">{b.website_url || '—'}</td>
                 <td className="px-4 py-3 font-mono text-[11px] text-muted-foreground truncate max-w-[200px]">{b.optin_url || '—'}</td>
                 <td className="px-4 py-3">

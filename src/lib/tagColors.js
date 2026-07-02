@@ -30,6 +30,27 @@ export function verticalColor(code) {
   return VERTICAL_PALETTE[h % VERTICAL_PALETTE.length];
 }
 
+// Distinct colour per brand code (deterministic hash → palette slot).
+const BRAND_PALETTE = [
+  { badge: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' },
+  { badge: 'bg-blue-500/15 text-blue-300 border-blue-500/40' },
+  { badge: 'bg-amber-500/15 text-amber-300 border-amber-500/40' },
+  { badge: 'bg-purple-500/15 text-purple-300 border-purple-500/40' },
+  { badge: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/40' },
+  { badge: 'bg-rose-500/15 text-rose-300 border-rose-500/40' },
+  { badge: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/40' },
+  { badge: 'bg-orange-500/15 text-orange-300 border-orange-500/40' },
+  { badge: 'bg-pink-500/15 text-pink-300 border-pink-500/40' },
+  { badge: 'bg-teal-500/15 text-teal-300 border-teal-500/40' },
+];
+
+export function brandColor(code) {
+  const s = String(code || '');
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return BRAND_PALETTE[h % BRAND_PALETTE.length];
+}
+
 // Neutral grey pill for operation / meta tags (Default, conditions, Brands, etc.)
 export const TAG_NEUTRAL = 'tag-neutral';
 
