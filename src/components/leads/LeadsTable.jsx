@@ -411,7 +411,8 @@ export default function LeadsTable({ view }) {
   };
 
   return (
-    <div>
+    <div className="h-full flex flex-col min-h-0">
+      <div className="shrink-0">
       <PageHeader title={config.title} subtitle={config.subtitle}>
         <RefreshButton onClick={() => qc.invalidateQueries()} />
         <ColumnManager
@@ -460,12 +461,12 @@ export default function LeadsTable({ view }) {
         resubmitting={resubmitting}
         progress={resubmitProgress}
       />
+      </div>
 
-      <div className="bg-card border border-border rounded-[10px] overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="flex-1 min-h-0 bg-card border border-border rounded-[10px] overflow-auto">
           <table className="w-full text-[13px]">
             <thead>
-              <tr className="border-b border-border bg-muted/50 sticky top-0">
+              <tr className="border-b border-border bg-muted sticky top-0 z-10">
                 <th className="px-4 py-3 w-[40px]">
                   <Checkbox
                     checked={allFilteredSelected}
@@ -539,7 +540,6 @@ export default function LeadsTable({ view }) {
               ))}
             </tbody>
           </table>
-        </div>
       </div>
 
       <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>

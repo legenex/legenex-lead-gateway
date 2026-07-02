@@ -20,10 +20,12 @@ export default function Settings() {
   };
 
   return (
-    <div>
-      <PageHeader title="Settings" subtitle="General settings, users, API keys, custom fields, error logs, and adaptive fields" />
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="bg-muted mb-4">
+    <div className="h-full flex flex-col min-h-0">
+      <div className="shrink-0">
+        <PageHeader title="Settings" subtitle="General settings, users, API keys, custom fields, error logs, and adaptive fields" />
+      </div>
+      <Tabs value={tab} onValueChange={setTab} className="flex-1 min-h-0 flex flex-col">
+        <TabsList className="bg-muted mb-4 shrink-0">
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="apikeys">API Keys</TabsTrigger>
@@ -33,14 +35,14 @@ export default function Settings() {
           <TabsTrigger value="errors">Error Logs</TabsTrigger>
           <TabsTrigger value="adaptive">Adaptive Fields</TabsTrigger>
         </TabsList>
-        <TabsContent value="general"><SettingsGeneral /></TabsContent>
-        <TabsContent value="users"><SettingsUsers /></TabsContent>
-        <TabsContent value="apikeys"><SettingsApiKeys /></TabsContent>
-        <TabsContent value="integrations"><SettingsIntegrations /></TabsContent>
-        <TabsContent value="notifications"><SettingsNotifications /></TabsContent>
-        <TabsContent value="fields"><SettingsCustomFields /></TabsContent>
-        <TabsContent value="errors"><ErrorLogs embedded /></TabsContent>
-        <TabsContent value="adaptive"><SettingsIgnoreList /></TabsContent>
+        <TabsContent value="general" className="flex-1 min-h-0 overflow-y-auto"><SettingsGeneral /></TabsContent>
+        <TabsContent value="users" className="flex-1 min-h-0 overflow-y-auto"><SettingsUsers /></TabsContent>
+        <TabsContent value="apikeys" className="flex-1 min-h-0 overflow-y-auto"><SettingsApiKeys /></TabsContent>
+        <TabsContent value="integrations" className="flex-1 min-h-0 overflow-y-auto"><SettingsIntegrations /></TabsContent>
+        <TabsContent value="notifications" className="flex-1 min-h-0 overflow-y-auto"><SettingsNotifications /></TabsContent>
+        <TabsContent value="fields" className="flex-1 min-h-0 overflow-y-auto"><SettingsCustomFields /></TabsContent>
+        <TabsContent value="errors" className="flex-1 min-h-0 overflow-y-auto"><ErrorLogs embedded /></TabsContent>
+        <TabsContent value="adaptive" className="flex-1 min-h-0 overflow-y-auto"><SettingsIgnoreList /></TabsContent>
       </Tabs>
     </div>
   );

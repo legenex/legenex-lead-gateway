@@ -4,10 +4,10 @@ import Sidebar from './Sidebar';
 
 export default function AppLayout() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-screen bg-background overflow-hidden">
       <Sidebar />
-      <main className="ml-[248px] min-h-screen">
-        <div className="p-6 lg:p-8 max-w-[1400px]">
+      <main className="ml-[248px] h-screen">
+        <div className="h-full overflow-y-auto p-6 lg:p-8 max-w-[1400px]">
           <Outlet />
         </div>
       </main>
