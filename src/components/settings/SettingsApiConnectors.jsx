@@ -22,8 +22,9 @@ import ConnectorFilterPanel from '@/components/settings/ConnectorFilterPanel';
 import { HighlightedPayloadEditor } from '@/components/settings/HighlightedPayloadEditor';
 import { buildTriggerOptions, statusLabelFor } from '@/lib/leadStatus';
 import { verticalColor, triggerTagClass, TAG_NEUTRAL } from '@/lib/tagColors';
-import { Plus, Save, Trash2, Play, Loader2, Eye, EyeOff, Zap, Globe, Copy, GripVertical } from 'lucide-react';
+import { Plus, Save, Trash2, Play, Loader2, Eye, EyeOff, Zap, Globe, Copy, GripVertical, ArrowUpDown } from 'lucide-react';
 import { toast } from 'sonner';
+import ImportExportModal from '@/components/shared/ImportExportModal';
 
 const KIND_OPTIONS = [
   { value: 'facebook_capi', label: 'Facebook CAPI' },
@@ -188,6 +189,7 @@ export default function SettingsApiConnectors() {
   const [activePlatform, setActivePlatform] = useState('facebook');
   const [statusFilter, setStatusFilter] = useState('all');
   const [testTrigger, setTestTrigger] = useState('on_received');
+  const [importExportOpen, setImportExportOpen] = useState(false);
 
   const { data: connectors = [] } = useQuery({
     queryKey: ['api-connectors'],
@@ -610,7 +612,10 @@ export default function SettingsApiConnectors() {
             options={STATUS_FILTERS}
           />
         </div>
-        <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" /> Add Connector</Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => setImportExportOpen(true)} className="gap-1.5"><ArrowUpDown className="w-3.5 h-3.5" /> Import / Export</Button>
+          <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" /> Add Connector</Button>
+        </div>
       </div>
 
       <DragDropContext onDragEnd={onDragEnd}>
@@ -692,6 +697,15 @@ export default function SettingsApiConnectors() {
       </DragDropContext>
       </>
       )}
+
+      <ImportExportModal
+        open={importExportOpen}
+        onOpenChange={setImportExportOpen}
+        entityName="ApiConnector"
+        queryKey={['api-connectors']}
+        items={connectors}
+        getItemLabel={(c) => c.name || 'Unnamed'}
+      />
     </div>
   );
 }

@@ -19,8 +19,9 @@ import TokenReferencePanel from '@/components/settings/TokenReferencePanel';
 import ConnectorFilterPanel from '@/components/settings/ConnectorFilterPanel';
 import { buildTriggerOptions, statusLabelFor } from '@/lib/leadStatus';
 import { verticalColor, triggerTagClass, TAG_NEUTRAL, statusTextClass } from '@/lib/tagColors';
-import { Plus, Save, Play, Loader2, Trash2, Copy, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Save, Play, Loader2, Trash2, Copy, ChevronDown, ChevronRight, ArrowUpDown } from 'lucide-react';
 import { toast } from 'sonner';
+import ImportExportModal from '@/components/shared/ImportExportModal';
 
 const DEFAULT_TEST_PAYLOAD = {
   campid: "LEGAL-MVA-USA",
@@ -195,6 +196,7 @@ export default function SettingsLeadByte() {
 
   const [editingMapping, setEditingMapping] = useState(null);
   const [savingMapping, setSavingMapping] = useState(false);
+  const [importExportOpen, setImportExportOpen] = useState(false);
 
   const { data: connectors = [] } = useQuery({
     queryKey: ['lb-connectors-all'],
@@ -642,7 +644,10 @@ export default function SettingsLeadByte() {
                 options={[{ value: 'all', label: 'All Verticals' }, ...verticalFilterOptions]}
               />
             </div>
-            <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" /> Add Destination</Button>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => setImportExportOpen(true)} className="gap-1.5"><ArrowUpDown className="w-3.5 h-3.5" /> Import / Export</Button>
+              <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" /> Add Destination</Button>
+            </div>
           </div>
           <div className="space-y-4">
             {[...connectors].filter(conn => {
@@ -725,6 +730,15 @@ export default function SettingsLeadByte() {
       )}
 
       {activeTab === 'logs' && <DeliveryLogsTab />}
+
+      <ImportExportModal
+        open={importExportOpen}
+        onOpenChange={setImportExportOpen}
+        entityName="LeadByteConnector"
+        queryKey={['lb-connectors-all']}
+        items={connectors}
+        getItemLabel={(c) => c.api_name || c.target_url || 'Unnamed'}
+      />
     </div>
   );
 }
