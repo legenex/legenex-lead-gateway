@@ -13,10 +13,11 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { SearchableSelect } from '@/components/ui/searchable-select';
-import { Plus, Pencil, Trash2, Calculator, GripVertical } from 'lucide-react';
+import { Plus, Pencil, Trash2, Calculator, GripVertical, ArrowUpDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { OutputFieldPicker } from '@/components/calculations/OutputFieldPicker';
 import ReferenceKeyPanel from '@/components/calculations/ReferenceKeyPanel';
+import ImportExportModal from '@/components/shared/ImportExportModal';
 
 const DEFAULT_DATE_BUCKETS = [
   { label: 'Within 7 Days', max_days: 7 },
@@ -94,6 +95,7 @@ export default function CustomCalculations() {
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState({ ...BLANK_FORM });
   const [deleteId, setDeleteId] = useState(null);
+  const [importExportOpen, setImportExportOpen] = useState(false);
 
   const { data: calcs = [] } = useQuery({
     queryKey: ['custom-calculations'],
@@ -215,9 +217,14 @@ export default function CustomCalculations() {
   return (
     <div className="p-6">
       <PageHeader title="Calculated Fields" subtitle="Define computed fields derived from inbound lead data. Drag to reorder.">
-        <Button onClick={openNew} size="sm" className="gap-2">
-          <Plus className="w-4 h-4" /> New Calculated Field
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setImportExportOpen(true)} size="sm" className="gap-1.5">
+            <ArrowUpDown className="w-3.5 h-3.5" /> Import / Export
+          </Button>
+          <Button onClick={openNew} size="sm" className="gap-2">
+            <Plus className="w-4 h-4" /> New Calculated Field
+          </Button>
+        </div>
       </PageHeader>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -429,6 +436,15 @@ export default function CustomCalculations() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ImportExportModal
+        open={importExportOpen}
+        onOpenChange={setImportExportOpen}
+        entityName="CustomCalculation"
+        queryKey={['custom-calculations']}
+        items={calcs}
+        getItemLabel={(c) => c.output_token || c.output_label || 'Unnamed'}
+      />
     </div>
   );
 }

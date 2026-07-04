@@ -10,9 +10,10 @@ import { MultiSelect } from '@/components/ui/multi-select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Copy, RefreshCw, Eye, EyeOff, Trash2 } from 'lucide-react';
+import { Plus, Copy, RefreshCw, Eye, EyeOff, Trash2, ArrowUpDown } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import ImportExportModal from '@/components/shared/ImportExportModal';
 
 function generateKey(supplierType = '') {
   const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -53,6 +54,7 @@ export default function SettingsSuppliers() {
   const [baseUrlSaved, setBaseUrlSaved] = useState(false);
   const [apiKeyCreateOpen, setApiKeyCreateOpen] = useState(false);
   const [apiKeyForm, setApiKeyForm] = useState({ name: '', type: 'supplier', supplier_id: '', vertical: '', active: true });
+  const [importExportOpen, setImportExportOpen] = useState(false);
 
   const { data: suppliers = [] } = useQuery({
     queryKey: ['suppliers'],
@@ -295,7 +297,8 @@ export default function SettingsSuppliers() {
         </div>
       </div>
 
-      <div className="flex justify-end mb-4">
+      <div className="flex justify-end mb-4 gap-2">
+        <Button size="sm" variant="outline" onClick={() => setImportExportOpen(true)} className="gap-1.5"><ArrowUpDown className="w-3.5 h-3.5" /> Import / Export</Button>
         <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" /> Add Supplier</Button>
       </div>
 
@@ -533,6 +536,15 @@ export default function SettingsSuppliers() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ImportExportModal
+        open={importExportOpen}
+        onOpenChange={setImportExportOpen}
+        entityName="Supplier"
+        queryKey={['suppliers']}
+        items={suppliers}
+        getItemLabel={(s) => s.name || 'Unnamed'}
+      />
     </div>
   );
 }

@@ -8,9 +8,10 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Plus, Save, Trash2 } from 'lucide-react';
+import { Plus, Save, Trash2, ArrowUpDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { brandColor } from '@/lib/tagColors';
+import ImportExportModal from '@/components/shared/ImportExportModal';
 
 const DEFAULT_FORM = {
   brand_name: '', brand_code: '', website_url: '', optin_url: '', active: true,
@@ -22,6 +23,7 @@ export default function SettingsBrands() {
   const [form, setForm] = useState(DEFAULT_FORM);
   const [editingId, setEditingId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [importExportOpen, setImportExportOpen] = useState(false);
 
   const { data: brands = [] } = useQuery({
     queryKey: ['brands'],
@@ -73,7 +75,8 @@ export default function SettingsBrands() {
 
   return (
     <div>
-      <div className="flex justify-end mb-4">
+      <div className="flex justify-end mb-4 gap-2">
+        <Button size="sm" variant="outline" onClick={() => setImportExportOpen(true)} className="gap-1.5"><ArrowUpDown className="w-3.5 h-3.5" /> Import / Export</Button>
         <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" /> Add Brand</Button>
       </div>
 
@@ -153,6 +156,15 @@ export default function SettingsBrands() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ImportExportModal
+        open={importExportOpen}
+        onOpenChange={setImportExportOpen}
+        entityName="Brand"
+        queryKey={['brands']}
+        items={brands}
+        getItemLabel={(b) => b.brand_name || 'Unnamed'}
+      />
     </div>
   );
 }
